@@ -1,0 +1,41 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id        Int     @id @default(autoincrement())
+  email     String  @unique
+  password  String
+  name      String?
+  role      String  @default("operator")
+  createdAt DateTime @default(now())
+}
+
+model SensorReading {
+  id          Int      @id @default(autoincrement())
+  temperature Float
+  humidity    Float
+  eggs        Int?     
+  fertilizer  Int?     
+  createdAt   DateTime @default(now())
+}
+
+model ActuatorLog {
+  id        Int      @id @default(autoincrement())
+  actuator  String
+  action    String
+  payload   String?
+  createdAt DateTime @default(now())
+}
+
+model Production {
+  id        Int      @id @default(autoincrement())
+  eggs      Int      @default(0)
+  lastColor String?
+  updatedAt DateTime @updatedAt
+}
