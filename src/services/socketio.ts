@@ -32,7 +32,7 @@ class SocketIOService {
 
       const socketURL =
         process.env.NODE_ENV === 'production'
-          ? window.location.origin
+          ? import.meta.env.VITE_BACKEND_URL || window.location.origin
           : 'http://localhost:3001';
 
       this.socket = io(socketURL, {

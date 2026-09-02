@@ -6,9 +6,18 @@
  * 
  * Base URL uses the Vite proxy configured in vite.config.ts
  * /api/* requests are automatically proxied to http://localhost:3001/api/*
+ * 
+ * In production, uses VITE_BACKEND_URL environment variable
  */
 
-const API_BASE_URL = '/api/v1';
+const getAPIBaseURL = () => {
+  if (import.meta.env.PROD && import.meta.env.VITE_BACKEND_URL) {
+    return `${import.meta.env.VITE_BACKEND_URL}/api/v1`;
+  }
+  return '/api/v1';
+};
+
+const API_BASE_URL = getAPIBaseURL();
 
 /**
  * Generic fetch wrapper with error handling
