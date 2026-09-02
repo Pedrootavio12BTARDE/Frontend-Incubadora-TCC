@@ -1,4 +1,4 @@
-import { Instagram, Linkedin, Mail, Send, MessageCircle } from "lucide-react";
+import { Instagram, Linkedin, Mail, Send } from "lucide-react";
 import { useState } from "react";
 
 interface AboutScreenProps {
@@ -15,31 +15,61 @@ export function AboutScreen({ darkMode = false, isDesktop = false }: AboutScreen
       name: "Pedro Otávio",
       role: "Engenheiro de Sistemas",
       description: "Especialista em IoT e arquitetura de soluções embarcadas",
+      image: "/images/team/pedro.jpg",
+      links: {
+        instagram: "https://www.instagram.com/pedro2.024_?igsi=MXhza2x2a2dqYXRhZQ==",
+        linkedin: "https://www.linkedin.com/in/pedrootaviomartins?utm_source=share_via&utm_content=profile&utm_medium=member_android",
+      }
     },
     {
       name: "Ana Botelho",
       role: "Desenvolvedora Full Stack",
       description: "Desenvolvimento do dashboard e integração de sistemas",
+      image: "/images/team/ana.jpg",
+      links: {
+        instagram: "https://www.instagram.com/anayzws_?utm_source=qr",
+        linkedin: "https://www.linkedin.com/in/ana-clara-botelho-dias-b26a22398?utm_source=share_via&utm_content=profile&utm_medium=member_ios",
+      }
     },
     {
       name: "Kauan Ferreira",
       role: "Designer UX/UI",
       description: "Criação da identidade visual e experiência do usuário",
+      image: "/images/team/kauan.jpg",
+      links: {
+        instagram: "https://www.instagram.com/kauanf_souza?igsi=MW15YXhrNjViOXE0ag==",
+        linkedin: "https://www.linkedin.com/in/kauan-ferreira-de-souza-4a8a2b352?utm_source=share&utm_campaign=share_via&utm_content=profile&utm_medium=android_app",
+      }
     },
     {
       name: "Maria Schilder",
       role: "Engenheira de Automação",
       description: "Sistema mecânico de triagem e rolagem automatizada",
+      image: "/images/team/maria.jpg",
+      links: {
+        instagram: "https://www.instagram.com/d.schilder_?igsi=azFodDU5aWxhMWlt&utm_source=qr",
+        linkedin: "https://www.linkedin.com/in/maria-eduarda-schilder-coimbra-4887121b2?utm_source=share_via&utm_content=profile&utm_medium=member_ios",
+      }
     },
     {
       name: "Luiz Otávio",
       role: "Analista de Dados",
       description: "Análise de dados e otimização de processos IoT",
+      image: "/images/team/luiz.jpg",
+      links: {
+        instagram: "https://www.instagram.com/otaviobxr__?igsi=MTJlZ2hwdHlscmR0cA%3D%3D&utm_source=qr",
+        linkedin: "https://www.linkedin.com/in/luis-otavio-6b6220383?utm_source=share_via&utm_content=profile&utm_medium=member_ios",
+      }
     },
     {
       name: "José Guilherme",
       role: "Engenheiro Eletrônico",
       description: "Desenvolvimento de hardware e circuitos embarcados",
+      image: "https://api.dicebear.com/7.x/avataaars/svg?seed=Jose&backgroundColor=9d4edd",
+      links: {
+        instagram: null,
+        linkedin: null,
+      }
     },
   ];
 
@@ -89,15 +119,12 @@ export function AboutScreen({ darkMode = false, isDesktop = false }: AboutScreen
             <div className="absolute top-0 right-0 w-24 h-24 bg-[#98FFD9]/10 rounded-full blur-3xl" />
 
             <div className="relative">
-              {/* Avatar placeholder */}
-              <div className="w-16 h-16 rounded-full bg-gradient-to-br from-[#98FFD9] to-[#6EDDC4] flex items-center justify-center mb-3 shadow-[0_0_20px_rgba(152,255,217,0.4)]">
-                <span
-                  className="text-2xl text-white"
-                  style={{ fontFamily: 'Montserrat, sans-serif', fontWeight: 900 }}
-                >
-                  {member.name.charAt(0)}
-                </span>
-              </div>
+              {/* Avatar com Imagem Real */}
+              <img
+                src={member.image}
+                alt={member.name}
+                className="w-16 h-16 rounded-full mb-3 shadow-[0_0_20px_rgba(152,255,217,0.4)] object-cover border-2 border-[#98FFD9]/40"
+              />
 
               {/* Nome e Cargo */}
               <h3
@@ -123,17 +150,30 @@ export function AboutScreen({ darkMode = false, isDesktop = false }: AboutScreen
                 {member.description}
               </p>
 
-              {/* Ícones Sociais */}
+              {/* Ícones Sociais com Links Funcionais */}
               <div className="flex items-center gap-3">
-                <button className="p-2.5 bg-[#98FFD9]/20 rounded-full hover:bg-[#98FFD9]/30 transition-all duration-300 border border-[#98FFD9]/40 hover:scale-110">
-                  <Instagram className="w-4 h-4 text-[#98FFD9]" strokeWidth={2.5} />
-                </button>
-                <button className="p-2.5 bg-[#98FFD9]/20 rounded-full hover:bg-[#98FFD9]/30 transition-all duration-300 border border-[#98FFD9]/40 hover:scale-110">
-                  <Linkedin className="w-4 h-4 text-[#98FFD9]" strokeWidth={2.5} />
-                </button>
-                <button className="p-2.5 bg-[#98FFD9]/20 rounded-full hover:bg-[#98FFD9]/30 transition-all duration-300 border border-[#98FFD9]/40 hover:scale-110">
-                  <MessageCircle className="w-4 h-4 text-[#98FFD9]" strokeWidth={2.5} />
-                </button>
+                {member.links.instagram && (
+                  <a
+                    href={member.links.instagram}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="p-2.5 bg-[#98FFD9]/20 rounded-full hover:bg-[#98FFD9]/30 transition-all duration-300 border border-[#98FFD9]/40 hover:scale-110"
+                    title="Instagram"
+                  >
+                    <Instagram className="w-4 h-4 text-[#98FFD9]" strokeWidth={2.5} />
+                  </a>
+                )}
+                {member.links.linkedin && (
+                  <a
+                    href={member.links.linkedin}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="p-2.5 bg-[#98FFD9]/20 rounded-full hover:bg-[#98FFD9]/30 transition-all duration-300 border border-[#98FFD9]/40 hover:scale-110"
+                    title="LinkedIn"
+                  >
+                    <Linkedin className="w-4 h-4 text-[#98FFD9]" strokeWidth={2.5} />
+                  </a>
+                )}
               </div>
             </div>
           </div>

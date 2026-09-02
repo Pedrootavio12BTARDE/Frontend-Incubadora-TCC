@@ -1,15 +1,72 @@
 import { ImageWithFallback } from "./figma/ImageWithFallback";
 import { EggIcon } from "./EggIcon";
 import chickenImg from "../../imports/94cb2e17-3d83-4613-8389-8fa6d9ca8e98-removebg-preview-5.png";
+import { useState, useEffect } from "react";
+import { useSocket } from "../../hooks/useSocket";
+import { incrementProduction, getProduction } from "../../services/api";
 
 interface ProductionCardProps {
-  eggCount: number;
-  lastColor: string;
-  onIncrement: () => void;
+  eggCount?: number;
+  lastColor?: string;
+  onIncrement?: () => void;
   darkMode?: boolean;
 }
 
-export function ProductionCard({ eggCount, lastColor, onIncrement, darkMode = false }: ProductionCardProps) {
+export function ProductionCard({ 
+  eggCount: defaultEggCount = 0, 
+  lastColor: defaultLastColor = "Marrom", 
+  onIncrement,
+  darkMode = false 
+}: ProductionCardProps) {
+  const [eggCount, setEggCount] = useState(defaultEggCount);
+  const [lastColor, setLastColor] = useState(defaultLastColor);
+  const [isLoading, setIsLoading] = useState(false);
+  const [showAnimation, setShowAnimation] = useState(false);
+
+  // Socket.io hook - listens to production:update events
+  const { data: productionUpdate, isConnected } = useSocket('production:update');
+
+  // Update state when Socket.io sends new production data
+  useEffect(() => {
+    if (productionUpdate) {
+      setEggCount(productionUpdate.eggsCount || eggCount);
+      setLastColor(productionUpdate.color || lastColor);
+    }
+  }, [productionUpdate]);
+
+  // Load initial production data
+  useEffect(() => {
+    getProduction()
+      .then((data) => {
+        setEggCount(data.eggsCount || 0);
+        setLastColor(data.lastColor || 'Marrom');
+      })
+      .catch((error) => console.error('Erro ao carregar dados de produção:', error));
+  }, []);
+
+  // Handle increment - calls backend API
+  const handleIncrement = async () => {
+    if (isLoading) return;
+
+    setIsLoading(true);
+    setShowAnimation(true);
+
+    try {
+      const result = await incrementProduction(1, lastColor);
+      setEggCount(result.newCount);
+      setLastColor(result.color);
+      onIncrement?.();
+
+      // Animation effect
+      setTimeout(() => setShowAnimation(false), 600);
+    } catch (error) {
+      console.error('Erro ao incrementar produção:', error);
+      setShowAnimation(false);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   return (
     <div>
       <h2 className={`text-base mb-2 transition-colors duration-300 ${darkMode ? 'text-white' : 'text-[#001F3F]'}`} style={{ fontFamily: 'Quicksand, sans-serif', fontWeight: 600 }}>
@@ -34,14 +91,19 @@ export function ProductionCard({ eggCount, lastColor, onIncrement, darkMode = fa
           <div className="flex-1 flex flex-col items-center">
             <div className="flex items-center gap-1.5 mb-1">
               <button
-                onClick={onIncrement}
-                className="p-2 bg-gradient-to-br from-[#98FFD9]/30 to-[#98FFD9]/20 rounded-xl hover:from-[#98FFD9]/40 hover:to-[#98FFD9]/30 transition-all duration-300 hover:scale-110 active:scale-95 border border-[#98FFD9]/40"
+                onClick={handleIncrement}
+                disabled={isLoading || !isConnected}
+                className={`p-2 bg-gradient-to-br from-[#98FFD9]/30 to-[#98FFD9]/20 rounded-xl hover:from-[#98FFD9]/40 hover:to-[#98FFD9]/30 transition-all duration-300 hover:scale-110 active:scale-95 border border-[#98FFD9]/40 ${
+                  isLoading || !isConnected ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'
+                }`}
                 title="Clicar para adicionar ovo"
               >
                 <EggIcon size={24} variant="brown" />
               </button>
               <div
-                className="text-5xl bg-gradient-to-br from-[#001F3F] to-[#003366] bg-clip-text text-transparent transition-all duration-500"
+                className={`text-5xl bg-gradient-to-br from-[#001F3F] to-[#003366] bg-clip-text text-transparent transition-all duration-500 ${
+                  showAnimation ? 'scale-110' : 'scale-100'
+                }`}
                 style={{
                   fontFamily: 'Montserrat, sans-serif',
                   fontWeight: 900,

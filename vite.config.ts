@@ -31,6 +31,19 @@ export default defineConfig({
     },
   },
 
+  // Development server configuration
+  server: {
+    proxy: {
+      // Proxy all /api requests to the backend server
+      '/api': {
+        target: 'http://localhost:3001',
+        changeOrigin: true,
+        // Uncomment below to rewrite path (e.g., /api/sensors -> /api/sensors)
+        // rewrite: (path) => path.replace(/^\/api/, ''),
+      },
+    },
+  },
+
   // File types to support raw imports. Never add .css, .tsx, or .ts files to this.
   assetsInclude: ['**/*.svg', '**/*.csv', '**/*.png', '**/*.jpg', '**/*.jpeg', '**/*.webp', '**/*.gif'],
 })
