@@ -23,41 +23,41 @@ export function LoginScreen({ darkMode = false, isDesktop = false, onBack, onTog
   return (
     <div className="h-full w-full flex flex-col lg:flex-row overflow-hidden overflow-y-auto relative">
       {/* LEFT COLUMN - Login Form */}
-      <div className="w-full lg:w-1/2 bg-gradient-to-br from-[#000C1A] to-[#001F3F] flex flex-col px-6 pt-6 pb-10 lg:p-16 lg:justify-center">
+      <div className="w-full lg:w-1/2 bg-gradient-to-br from-[#000C1A] to-[#001F3F] flex flex-col px-4 pt-4 pb-10 lg:px-16 lg:pt-8 lg:pb-10 lg:justify-center">
         {/* Top bar: Home + Dark mode icons */}
-        <div className="flex items-center justify-between mb-8">
+        <div className="flex items-center justify-between mb-6 lg:mb-8 px-1">
           {onBack ? (
             <button
               onClick={onBack}
-              className="p-2.5 bg-white/10 hover:bg-white/20 backdrop-blur-xl rounded-xl border border-white/20 transition-all duration-300"
+              className="p-2 lg:p-2.5 bg-white/10 hover:bg-white/20 backdrop-blur-xl rounded-lg lg:rounded-xl border border-white/20 transition-all duration-300 flex-shrink-0"
             >
-              <Home className="w-5 h-5 text-[#98FFD9]" strokeWidth={2.5} />
+              <Home className="w-4 h-4 lg:w-5 lg:h-5 text-[#98FFD9]" strokeWidth={2.5} />
             </button>
-          ) : <div />}
+          ) : <div className="w-8 lg:w-10" />}
 
           {onToggleDarkMode && (
             <button
               onClick={onToggleDarkMode}
-              className="p-2.5 bg-white/10 hover:bg-white/20 backdrop-blur-xl rounded-xl border border-white/20 transition-all duration-300"
+              className="p-2 lg:p-2.5 bg-white/10 hover:bg-white/20 backdrop-blur-xl rounded-lg lg:rounded-xl border border-white/20 transition-all duration-300 flex-shrink-0"
             >
               {darkMode
-                ? <Sun className="w-5 h-5 text-[#98FFD9]" strokeWidth={2.5} />
-                : <Moon className="w-5 h-5 text-[#98FFD9]" strokeWidth={2.5} />}
+                ? <Sun className="w-4 h-4 lg:w-5 lg:h-5 text-[#98FFD9]" strokeWidth={2.5} />
+                : <Moon className="w-4 h-4 lg:w-5 lg:h-5 text-[#98FFD9]" strokeWidth={2.5} />}
             </button>
           )}
         </div>
 
-        <div className="w-full max-w-md mx-auto lg:mx-0">
+        <div className="w-full max-w-md mx-auto lg:mx-0 px-0 overflow-hidden">
           {/* Logo Section */}
-          <div className="mb-8 flex items-center gap-4">
+          <div className="mb-6 lg:mb-8 flex items-center gap-3 lg:gap-4">
             <img
               src={logoImg}
               alt="EcoIncubadora Logo"
-              className="w-20 h-20 object-contain drop-shadow-[0_0_25px_rgba(152,255,217,0.6)]"
+              className="w-16 lg:w-20 h-16 lg:h-20 object-contain drop-shadow-[0_0_25px_rgba(152,255,217,0.6)] flex-shrink-0"
             />
             <div>
               <h1
-                className="text-3xl leading-tight text-white"
+                className="text-2xl lg:text-3xl leading-tight text-white"
                 style={{
                   fontFamily: 'Quicksand, sans-serif',
                   fontWeight: 900,
@@ -66,7 +66,7 @@ export function LoginScreen({ darkMode = false, isDesktop = false, onBack, onTog
                 EcoIncubadora
               </h1>
               <p
-                className="text-[#98FFD9] text-sm"
+                className="text-xs lg:text-sm text-[#98FFD9]"
                 style={{ fontFamily: 'Quicksand, sans-serif', fontWeight: 600 }}
               >
                 Sistema IoT Inteligente
@@ -75,10 +75,10 @@ export function LoginScreen({ darkMode = false, isDesktop = false, onBack, onTog
           </div>
 
           {/* Tab Switcher */}
-          <div className="flex gap-4 mb-8">
+          <div className="flex gap-2 lg:gap-4 mb-6 lg:mb-8">
             <button
               onClick={() => setIsSignUp(false)}
-              className={`flex-1 py-3 rounded-lg text-sm font-bold transition-all duration-300 ${
+              className={`flex-1 py-2 lg:py-3 rounded-lg text-xs lg:text-sm font-bold transition-all duration-300 ${
                 !isSignUp
                   ? 'bg-gradient-to-r from-[#98FFD9] to-[#6EDDC4] text-[#001F3F] shadow-[0_4px_20px_rgba(152,255,217,0.4)]'
                   : 'bg-white/5 text-white/50 hover:bg-white/10'
@@ -89,7 +89,7 @@ export function LoginScreen({ darkMode = false, isDesktop = false, onBack, onTog
             </button>
             <button
               onClick={() => setIsSignUp(true)}
-              className={`flex-1 py-3 rounded-lg text-sm font-bold transition-all duration-300 ${
+              className={`flex-1 py-2 lg:py-3 rounded-lg text-xs lg:text-sm font-bold transition-all duration-300 ${
                 isSignUp
                   ? 'bg-gradient-to-r from-[#98FFD9] to-[#6EDDC4] text-[#001F3F] shadow-[0_4px_20px_rgba(152,255,217,0.4)]'
                   : 'bg-white/5 text-white/50 hover:bg-white/10'
@@ -101,18 +101,18 @@ export function LoginScreen({ darkMode = false, isDesktop = false, onBack, onTog
           </div>
 
           {/* Form */}
-          <form onSubmit={handleSubmit} className="space-y-5">
+          <form onSubmit={handleSubmit} className="space-y-4 lg:space-y-5">
             {/* Email Field */}
             <div>
               <label
-                className="block text-white/80 text-sm mb-2"
+                className="block text-white/80 text-xs lg:text-sm mb-2"
                 style={{ fontFamily: 'Quicksand, sans-serif', fontWeight: 600 }}
               >
                 Email
               </label>
               <div className="relative">
-                <div className="absolute left-4 top-1/2 -translate-y-1/2 text-[#98FFD9]">
-                  <Mail className="w-5 h-5" strokeWidth={2.5} />
+                <div className="absolute left-3 lg:left-4 top-1/2 -translate-y-1/2 text-[#98FFD9]">
+                  <Mail className="w-4 lg:w-5 h-4 lg:h-5" strokeWidth={2.5} />
                 </div>
                 <input
                   type="email"
@@ -120,7 +120,7 @@ export function LoginScreen({ darkMode = false, isDesktop = false, onBack, onTog
                   onChange={(e) => setEmail(e.target.value)}
                   placeholder="seu@email.com"
                   required
-                  className="w-full bg-white/10 border-2 border-white/20 rounded-lg pl-12 pr-4 py-3.5 text-white placeholder:text-white/40 focus:outline-none focus:border-[#98FFD9] focus:bg-white/15 transition-all duration-300"
+                  className="w-full bg-white/10 border-2 border-white/20 rounded-lg pl-10 lg:pl-12 pr-4 py-2.5 lg:py-3.5 text-white placeholder:text-white/40 focus:outline-none focus:border-[#98FFD9] focus:bg-white/15 transition-all duration-300 text-sm lg:text-base"
                   style={{ fontFamily: 'Quicksand, sans-serif', fontWeight: 500 }}
                 />
               </div>
@@ -129,14 +129,14 @@ export function LoginScreen({ darkMode = false, isDesktop = false, onBack, onTog
             {/* Password Field */}
             <div>
               <label
-                className="block text-white/80 text-sm mb-2"
+                className="block text-white/80 text-xs lg:text-sm mb-2"
                 style={{ fontFamily: 'Quicksand, sans-serif', fontWeight: 600 }}
               >
                 Password
               </label>
               <div className="relative">
-                <div className="absolute left-4 top-1/2 -translate-y-1/2 text-[#98FFD9]">
-                  <Lock className="w-5 h-5" strokeWidth={2.5} />
+                <div className="absolute left-3 lg:left-4 top-1/2 -translate-y-1/2 text-[#98FFD9]">
+                  <Lock className="w-4 lg:w-5 h-4 lg:h-5" strokeWidth={2.5} />
                 </div>
                 <input
                   type="password"
@@ -144,7 +144,7 @@ export function LoginScreen({ darkMode = false, isDesktop = false, onBack, onTog
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder="••••••••"
                   required
-                  className="w-full bg-white/10 border-2 border-white/20 rounded-lg pl-12 pr-4 py-3.5 text-white placeholder:text-white/40 focus:outline-none focus:border-[#98FFD9] focus:bg-white/15 transition-all duration-300"
+                  className="w-full bg-white/10 border-2 border-white/20 rounded-lg pl-10 lg:pl-12 pr-4 py-2.5 lg:py-3.5 text-white placeholder:text-white/40 focus:outline-none focus:border-[#98FFD9] focus:bg-white/15 transition-all duration-300 text-sm lg:text-base"
                   style={{ fontFamily: 'Quicksand, sans-serif', fontWeight: 500 }}
                 />
               </div>
@@ -154,14 +154,14 @@ export function LoginScreen({ darkMode = false, isDesktop = false, onBack, onTog
             {isSignUp && (
               <div>
                 <label
-                  className="block text-white/80 text-sm mb-2"
+                  className="block text-white/80 text-xs lg:text-sm mb-2"
                   style={{ fontFamily: 'Quicksand, sans-serif', fontWeight: 600 }}
                 >
                   Confirm Password
                 </label>
                 <div className="relative">
-                  <div className="absolute left-4 top-1/2 -translate-y-1/2 text-[#98FFD9]">
-                    <Lock className="w-5 h-5" strokeWidth={2.5} />
+                  <div className="absolute left-3 lg:left-4 top-1/2 -translate-y-1/2 text-[#98FFD9]">
+                    <Lock className="w-4 lg:w-5 h-4 lg:h-5" strokeWidth={2.5} />
                   </div>
                   <input
                     type="password"
@@ -169,7 +169,7 @@ export function LoginScreen({ darkMode = false, isDesktop = false, onBack, onTog
                     onChange={(e) => setConfirmPassword(e.target.value)}
                     placeholder="••••••••"
                     required
-                    className="w-full bg-white/10 border-2 border-white/20 rounded-lg pl-12 pr-4 py-3.5 text-white placeholder:text-white/40 focus:outline-none focus:border-[#98FFD9] focus:bg-white/15 transition-all duration-300"
+                    className="w-full bg-white/10 border-2 border-white/20 rounded-lg pl-10 lg:pl-12 pr-4 py-2.5 lg:py-3.5 text-white placeholder:text-white/40 focus:outline-none focus:border-[#98FFD9] focus:bg-white/15 transition-all duration-300 text-sm lg:text-base"
                     style={{ fontFamily: 'Quicksand, sans-serif', fontWeight: 500 }}
                   />
                 </div>
@@ -179,7 +179,7 @@ export function LoginScreen({ darkMode = false, isDesktop = false, onBack, onTog
             {/* Submit Button */}
             <button
               type="submit"
-              className="w-full py-4 rounded-lg text-[#001F3F] text-base uppercase tracking-wide shadow-lg hover:shadow-xl transition-all duration-300 mt-8 bg-gradient-to-r from-[#98FFD9] to-[#6EDDC4] hover:from-[#6EDDC4] hover:to-[#98FFD9] shadow-[0_8px_24px_rgba(152,255,217,0.4)]"
+              className="w-full py-3 lg:py-4 rounded-lg text-[#001F3F] text-xs lg:text-base uppercase tracking-wide shadow-lg hover:shadow-xl transition-all duration-300 mt-6 lg:mt-8 bg-gradient-to-r from-[#98FFD9] to-[#6EDDC4] hover:from-[#6EDDC4] hover:to-[#98FFD9] shadow-[0_8px_24px_rgba(152,255,217,0.4)]"
               style={{ fontFamily: 'Quicksand, sans-serif', fontWeight: 900 }}
             >
               {isSignUp ? 'CREATE ACCOUNT' : 'LOGIN'}
@@ -188,10 +188,10 @@ export function LoginScreen({ darkMode = false, isDesktop = false, onBack, onTog
 
           {/* Footer Text */}
           {!isSignUp && (
-            <div className="mt-6 text-center">
+            <div className="mt-4 lg:mt-6 text-center">
               <a
                 href="#"
-                className="text-[#98FFD9] text-sm hover:text-[#6EDDC4] transition-colors"
+                className="text-[#98FFD9] text-xs lg:text-sm hover:text-[#6EDDC4] transition-colors"
                 style={{ fontFamily: 'Quicksand, sans-serif', fontWeight: 600 }}
               >
                 Esqueceu sua senha?
