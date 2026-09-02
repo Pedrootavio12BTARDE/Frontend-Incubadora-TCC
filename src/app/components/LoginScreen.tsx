@@ -253,19 +253,21 @@ export function LoginScreen({ darkMode = false, isDesktop = false, onBack, onTog
                 ? 'bg-white/5 border-[#98FFD9]/10'
                 : 'bg-white/60 border-[#98FFD9]/20'
             }`}>
-              <div className="flex items-center gap-2 mb-2">
-                <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${
-                  darkMode ? 'bg-[#98FFD9]/10' : 'bg-[#98FFD9]/20'
+              <div className="flex flex-col items-center gap-3 mb-3">
+                <div className={`w-12 h-12 rounded-lg flex items-center justify-center transition-all duration-300 ${
+                  darkMode 
+                    ? 'bg-gradient-to-br from-[#FF6B6B]/20 to-[#FF8E53]/20 shadow-[0_4px_12px_rgba(255,107,107,0.2)]' 
+                    : 'bg-gradient-to-br from-[#FF6B6B]/30 to-[#FF8E53]/30 shadow-[0_4px_12px_rgba(255,107,107,0.3)]'
                 }`}>
-                  <Thermometer className={`w-4 h-4 ${darkMode ? 'text-[#98FFD9]' : 'text-[#001F3F]'}`} strokeWidth={2.5} />
+                  <Thermometer className="w-6 h-6 text-[#FF6B6B]" strokeWidth={2.5} />
                 </div>
-                <p className={`text-xs uppercase tracking-wider transition-colors duration-300 ${
-                  darkMode ? 'text-white/70' : 'text-[#001F3F]/70'
-                }`} style={{ fontFamily: 'Quicksand, sans-serif', fontWeight: 700 }}>
-                  Temp
-                </p>
               </div>
-              <p className={`text-2xl font-mono font-bold transition-colors duration-300 ${
+              <p className={`text-xs uppercase tracking-wider text-center transition-colors duration-300 ${
+                darkMode ? 'text-white/70' : 'text-[#001F3F]/70'
+              }`} style={{ fontFamily: 'Quicksand, sans-serif', fontWeight: 700 }}>
+                Temperatura
+              </p>
+              <p className={`text-2xl font-mono font-bold text-center mt-2 transition-colors duration-300 ${
                 darkMode ? 'text-white' : 'text-[#001F3F]'
               }`}>37.5°C</p>
             </div>
@@ -276,19 +278,21 @@ export function LoginScreen({ darkMode = false, isDesktop = false, onBack, onTog
                 ? 'bg-white/5 border-[#98FFD9]/10'
                 : 'bg-white/60 border-[#98FFD9]/20'
             }`}>
-              <div className="flex items-center gap-2 mb-2">
-                <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${
-                  darkMode ? 'bg-[#98FFD9]/10' : 'bg-[#98FFD9]/20'
+              <div className="flex flex-col items-center gap-3 mb-3">
+                <div className={`w-12 h-12 rounded-lg flex items-center justify-center transition-all duration-300 ${
+                  darkMode 
+                    ? 'bg-gradient-to-br from-[#4ECDC4]/20 to-[#44A6A0]/20 shadow-[0_4px_12px_rgba(78,205,196,0.2)]' 
+                    : 'bg-gradient-to-br from-[#4ECDC4]/30 to-[#44A6A0]/30 shadow-[0_4px_12px_rgba(78,205,196,0.3)]'
                 }`}>
-                  <Droplets className={`w-4 h-4 ${darkMode ? 'text-[#98FFD9]' : 'text-[#001F3F]'}`} strokeWidth={2.5} />
+                  <Droplets className="w-6 h-6 text-[#4ECDC4]" strokeWidth={2.5} />
                 </div>
-                <p className={`text-xs uppercase tracking-wider transition-colors duration-300 ${
-                  darkMode ? 'text-white/70' : 'text-[#001F3F]/70'
-                }`} style={{ fontFamily: 'Quicksand, sans-serif', fontWeight: 700 }}>
-                  Umidade
-                </p>
               </div>
-              <p className={`text-2xl font-mono font-bold transition-colors duration-300 ${
+              <p className={`text-xs uppercase tracking-wider text-center transition-colors duration-300 ${
+                darkMode ? 'text-white/70' : 'text-[#001F3F]/70'
+              }`} style={{ fontFamily: 'Quicksand, sans-serif', fontWeight: 700 }}>
+                Umidade
+              </p>
+              <p className={`text-2xl font-mono font-bold text-center mt-2 transition-colors duration-300 ${
                 darkMode ? 'text-white' : 'text-[#001F3F]'
               }`}>65%</p>
             </div>
@@ -301,9 +305,15 @@ export function LoginScreen({ darkMode = false, isDesktop = false, onBack, onTog
               : 'bg-gradient-to-r from-[#98FFD9]/20 to-[#6EDDC4]/20 border-[#98FFD9]/40'
           }`}>
             <div className="flex items-center gap-3">
-              <div className="relative">
-                <Wifi className={`w-6 h-6 ${darkMode ? 'text-[#98FFD9]' : 'text-[#001F3F]'}`} strokeWidth={2.5} />
-                <div className="absolute -top-1 -right-1 w-3 h-3 rounded-full bg-[#98FFD9] animate-pulse shadow-[0_0_10px_rgba(152,255,217,0.8)]" />
+              <div className={`w-14 h-14 rounded-lg flex items-center justify-center transition-all duration-300 ${
+                darkMode 
+                  ? 'bg-gradient-to-br from-[#98FFD9]/20 to-[#6EDDC4]/20 shadow-[0_4px_12px_rgba(152,255,217,0.2)]' 
+                  : 'bg-gradient-to-br from-[#98FFD9]/30 to-[#6EDDC4]/30 shadow-[0_4px_12px_rgba(152,255,217,0.3)]'
+              }`}>
+                <div className="relative">
+                  <Wifi className={`w-7 h-7 ${darkMode ? 'text-[#98FFD9]' : 'text-[#001F3F]'}`} strokeWidth={2.5} />
+                  <div className="absolute -top-2 -right-2 w-3.5 h-3.5 rounded-full bg-green-400 animate-pulse shadow-[0_0_12px_rgba(34,197,94,0.8)]" />
+                </div>
               </div>
               <div>
                 <p className={`text-base transition-colors duration-300 ${
