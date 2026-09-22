@@ -30,11 +30,9 @@ class SocketIOService {
         return;
       }
 
-      const socketURL =
-        process.env.NODE_ENV === 'production'
-          ? import.meta.env.VITE_BACKEND_URL || window.location.origin
-          : 'http://localhost:3001';
-
+const socketURL =
+  import.meta.env.VITE_BACKEND_URL || 
+  (import.meta.env.DEV ? 'http://localhost:3001' : window.location.origin);
       this.socket = io(socketURL, {
         reconnection: true,
         reconnectionDelay: 1000,

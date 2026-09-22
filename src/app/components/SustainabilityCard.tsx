@@ -24,7 +24,8 @@ export function SustainabilityCard({ level, darkMode = false }: SustainabilityCa
             <Leaf className="w-5 h-5 text-white" strokeWidth={2} />
           </div>
           <div className="flex-1">
-            <div className="text-sm text-[#001F3F]" style={{ fontFamily: 'Quicksand, sans-serif', fontWeight: 600 }}>
+            {/* CORRIGIDO AQUI: adicionada a condicional do darkMode para o texto */}
+            <div className={`text-sm transition-colors duration-300 ${darkMode ? 'text-white' : 'text-[#001F3F]'}`} style={{ fontFamily: 'Quicksand, sans-serif', fontWeight: 600 }}>
               Nível do Coletor de Adubo
             </div>
           </div>

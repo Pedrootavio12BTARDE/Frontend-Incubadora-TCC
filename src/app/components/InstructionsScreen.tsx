@@ -3,9 +3,10 @@ import { Zap, Wifi, Scan, Thermometer, RotateCw, Play, HelpCircle, ArrowLeft } f
 interface InstructionsScreenProps {
   onSupport?: () => void;
   onBack?: () => void;
+  darkMode?: boolean;
 }
 
-export function InstructionsScreen({ onSupport, onBack }: InstructionsScreenProps) {
+export function InstructionsScreen({ onSupport, onBack, darkMode = false }: InstructionsScreenProps) {
   const steps = [
     {
       number: 1,
@@ -51,24 +52,28 @@ export function InstructionsScreen({ onSupport, onBack }: InstructionsScreenProp
         {onBack && (
           <button
             onClick={onBack}
-            className="flex items-center gap-3 mb-5 px-4 py-3 rounded-2xl bg-gradient-to-r from-[#001F3F]/10 to-[#98FFD9]/10 border border-[#98FFD9]/40 hover:from-[#98FFD9]/20 hover:to-[#6EDDC4]/15 hover:border-[#98FFD9]/60 hover:shadow-[0_4px_20px_rgba(152,255,217,0.25)] transition-all duration-300 group w-fit"
+            className={`flex items-center gap-3 mb-5 px-4 py-3 rounded-2xl border transition-all duration-300 group w-fit ${
+              darkMode
+                ? "bg-white/10 border-[#98FFD9]/30 text-white hover:bg-white/20"
+                : "bg-gradient-to-r from-[#001F3F]/10 to-[#98FFD9]/10 border border-[#98FFD9]/40 hover:from-[#98FFD9]/20 text-[#001F3F]"
+            }`}
             style={{ fontFamily: 'Quicksand, sans-serif', fontWeight: 700 }}
           >
             <div className="p-2 rounded-xl bg-[#98FFD9]/15 group-hover:bg-[#98FFD9]/30 transition-colors">
-              <ArrowLeft className="w-5 h-5 text-[#001F3F] group-hover:-translate-x-0.5 transition-transform" strokeWidth={2.5} />
+              <ArrowLeft className={`w-5 h-5 group-hover:-translate-x-0.5 transition-transform ${darkMode ? "text-[#98FFD9]" : "text-[#001F3F]"}`} strokeWidth={2.5} />
             </div>
-            <span className="text-base text-[#001F3F]">Voltar ao início</span>
+            <span className="text-base">Voltar ao início</span>
           </button>
         )}
         <div className="text-center">
           <h1
-            className="text-2xl bg-gradient-to-br from-[#000C1A] to-[#001F3F] bg-clip-text text-transparent mb-2"
-            style={{ fontFamily: 'Quicksand, sans-serif', fontWeight: 800 }}
+            className={`text-2xl mb-2 font-extrabold ${darkMode ? "text-white" : "bg-gradient-to-br from-[#000C1A] to-[#001F3F] bg-clip-text text-transparent"}`}
+            style={{ fontFamily: 'Quicksand, sans-serif' }}
           >
             Guia de Operação
           </h1>
           <p
-            className="text-sm text-[#001F3F] opacity-70"
+            className={`text-sm ${darkMode ? "text-slate-300" : "text-[#001F3F] opacity-70"}`}
             style={{ fontFamily: 'Quicksand, sans-serif', fontWeight: 500 }}
           >
             Siga os passos para uma incubação perfeita
@@ -139,7 +144,6 @@ export function InstructionsScreen({ onSupport, onBack }: InstructionsScreenProp
 
               {/* Número e Ícone */}
               <div className="relative flex-shrink-0">
-                {/* Número com efeito neon */}
                 <div
                   className="w-11 h-11 rounded-full flex items-center justify-center border-2 relative z-10"
                   style={{
@@ -174,10 +178,13 @@ export function InstructionsScreen({ onSupport, onBack }: InstructionsScreenProp
                 </div>
               </div>
 
-              {/* Conteúdo */}
+              {/* Conteúdo do Passo */}
               <div className="flex-1 pb-4">
-                <div className="relative bg-gradient-to-br from-white/60 to-white/30 backdrop-blur-xl rounded-2xl p-4 border border-white/60 shadow-[0_8px_24px_rgba(0,31,63,0.1)] hover:shadow-[0_12px_32px_rgba(152,255,217,0.2)] transition-all duration-300">
-                  {/* Efeito de brilho sutil */}
+                <div className={`relative backdrop-blur-xl rounded-2xl p-4 border transition-all duration-300 ${
+                  darkMode
+                    ? "bg-[#0a1628]/80 border-[#98FFD9]/20 shadow-[0_8px_24px_rgba(0,0,0,0.3)]"
+                    : "bg-gradient-to-br from-white/60 to-white/30 border-white/60 shadow-[0_8px_24px_rgba(0,31,63,0.1)]"
+                }`}>
                   <div
                     className="absolute top-0 right-0 w-20 h-20 rounded-full blur-2xl opacity-30"
                     style={{ background: `radial-gradient(circle, ${step.color}, transparent)` }}
@@ -185,13 +192,13 @@ export function InstructionsScreen({ onSupport, onBack }: InstructionsScreenProp
 
                   <div className="relative">
                     <h3
-                      className="text-base text-[#001F3F] mb-2"
-                      style={{ fontFamily: 'Quicksand, sans-serif', fontWeight: 700 }}
+                      className={`text-base mb-2 font-bold ${darkMode ? "text-white" : "text-[#001F3F]"}`}
+                      style={{ fontFamily: 'Quicksand, sans-serif' }}
                     >
                       {step.title}
                     </h3>
                     <p
-                      className="text-xs text-[#001F3F] opacity-70 leading-relaxed"
+                      className={`text-xs leading-relaxed ${darkMode ? "text-slate-300" : "text-[#001F3F]/70"}`}
                       style={{ fontFamily: 'Quicksand, sans-serif', fontWeight: 500 }}
                     >
                       {step.description}
@@ -208,21 +215,24 @@ export function InstructionsScreen({ onSupport, onBack }: InstructionsScreenProp
       <div className="pt-2 pb-20">
         <button
           onClick={onSupport}
-          className="relative w-full bg-gradient-to-r from-white/60 to-white/40 backdrop-blur-xl text-[#001F3F] py-4 rounded-[1.5rem] border-2 border-[#98FFD9]/60 shadow-[0_8px_24px_rgba(152,255,217,0.2)] hover:shadow-[0_12px_32px_rgba(152,255,217,0.3)] transition-all duration-300 flex items-center justify-center gap-2 overflow-hidden group"
+          className={`relative w-full py-4 rounded-[1.5rem] border-2 shadow-lg transition-all duration-300 flex items-center justify-center gap-2 overflow-hidden group ${
+            darkMode
+              ? "bg-[#0a1628] text-white border-[#98FFD9]/50 hover:bg-[#98FFD9]/10"
+              : "bg-gradient-to-r from-white/60 to-white/40 backdrop-blur-xl text-[#001F3F] border-[#98FFD9]/60"
+          }`}
         >
-          {/* Efeito de brilho no hover */}
           <div className="absolute -right-8 top-0 w-16 h-full bg-gradient-to-r from-transparent to-[#98FFD9]/20 rotate-12 group-hover:right-full transition-all duration-700" />
 
           <HelpCircle className="relative w-5 h-5 text-[#98FFD9]" strokeWidth={2.5} />
           <span
-            className="relative text-sm"
-            style={{ fontFamily: 'Quicksand, sans-serif', fontWeight: 700 }}
+            className="relative text-sm font-bold"
+            style={{ fontFamily: 'Quicksand, sans-serif' }}
           >
             Começar a Usar Agora
           </span>
         </button>
 
-        <p className="text-center text-[9px] text-[#001F3F] opacity-40 mt-3" style={{ fontFamily: 'Quicksand, sans-serif' }}>
+        <p className={`text-center text-[9px] mt-3 ${darkMode ? "text-slate-400" : "text-[#001F3F]/40"}`} style={{ fontFamily: 'Quicksand, sans-serif' }}>
           Pronto para explorar o dashboard completo
         </p>
       </div>

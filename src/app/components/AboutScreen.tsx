@@ -65,10 +65,10 @@ export function AboutScreen({ darkMode = false, isDesktop = false }: AboutScreen
       name: "José Guilherme",
       role: "Engenheiro Eletrônico",
       description: "Desenvolvimento de hardware e circuitos embarcados",
-      image: "https://api.dicebear.com/7.x/avataaars/svg?seed=Jose&backgroundColor=9d4edd",
+      image: "/images/team/jose.jpg",
       links: {
-        instagram: null,
-        linkedin: null,
+        instagram: "https://www.instagram.com/jose.guiii?igsi=MW5uMDg3MWZxOGR1cw%3D%3D&utm_source=qr",
+        linkedin: "https://www.linkedin.com/in/jos%C3%A9-galv%C3%A3o-399209220/",
       }
     },
   ];
