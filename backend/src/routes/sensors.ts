@@ -28,6 +28,36 @@ import prisma from '../lib/prisma';
 
 const router = Router();
 
+async function getLatestReading() {
+  const [latest, latestTemperature, latestHumidity, latestSoilHumidity] = await Promise.all([
+    prisma.sensorReading.findFirst({ orderBy: { createdAt: 'desc' } }),
+    prisma.sensorReading.findFirst({
+      where: { temperature: { not: null } },
+      orderBy: { createdAt: 'desc' },
+    }),
+    prisma.sensorReading.findFirst({
+      where: { humidity: { not: null } },
+      orderBy: { createdAt: 'desc' },
+    }),
+    prisma.sensorReading.findFirst({
+      where: { soilHumidity: { not: null } },
+      orderBy: { createdAt: 'desc' },
+    }),
+  ]);
+
+  if (!latest) return null;
+
+  return {
+    ...latest,
+    temperature: latestTemperature?.temperature ?? null,
+    humidity: latestHumidity?.humidity ?? null,
+    soilHumidity: latestSoilHumidity?.soilHumidity ?? null,
+    temperatureCreatedAt: latestTemperature?.createdAt ?? null,
+    humidityCreatedAt: latestHumidity?.createdAt ?? null,
+    soilHumidityCreatedAt: latestSoilHumidity?.createdAt ?? null,
+  };
+}
+
 /**
  * GET /api/v1/sensors/latest
  * 
@@ -48,10 +78,7 @@ const router = Router();
  */
 router.get('/latest', async (req, res) => {
   try {
-    // Busca no banco: ordenar por data DESC (mais recente primeiro) e pegar o primeiro
-    const latest = await prisma.sensorReading.findFirst({ 
-      orderBy: { createdAt: 'desc' } 
-    });
+    const latest = await getLatestReading();
     res.json(latest);
   } catch (err) {
     res.status(500).json({ error: 'failed to get latest reading' });
@@ -92,33 +119,63 @@ router.get('/latest', async (req, res) => {
  */
 router.post('/data', async (req, res) => {
   try {
-    // Extrai dados do body
-    const { temperature, humidity, eggs, fertilizer, timestamp } = req.body;
-    
-    // Validação básica: temperatura e umidade são obrigatórias
-    if (temperature === undefined || humidity === undefined) {
-      return res.status(400).json({ error: 'temperature and humidity are required' });
+    const { temperature, humidity, soilHumidity, eggs, fertilizer, timestamp } = req.body ?? {};
+    const hasTemperature = temperature !== undefined && temperature !== null;
+    const hasHumidity = humidity !== undefined && humidity !== null;
+    const hasSoilHumidity = soilHumidity !== undefined && soilHumidity !== null;
+
+    if (!hasTemperature && !hasHumidity && !hasSoilHumidity) {
+      return res.status(400).json({ error: 'at least one sensor reading is required' });
     }
 
-    // Constrói objeto de dados dinamicamente (só inclui campos presentes)
-    const data: any = {
-      temperature: Number(temperature),
-      humidity: Number(humidity),
-    };
-    
-    // Adiciona campos opcionais se presentes
+    const data: {
+      temperature?: number;
+      humidity?: number;
+      soilHumidity?: number;
+      eggs?: number;
+      fertilizer?: number;
+      createdAt?: Date;
+    } = {};
+
+    if (hasTemperature) {
+      const value = Number(temperature);
+      if (!Number.isFinite(value)) {
+        return res.status(400).json({ error: 'temperature must be a finite number' });
+      }
+      data.temperature = value;
+    }
+
+    if (hasHumidity) {
+      const value = Number(humidity);
+      if (!Number.isFinite(value) || value < 0 || value > 100) {
+        return res.status(400).json({ error: 'humidity must be a number between 0 and 100' });
+      }
+      data.humidity = value;
+    }
+
+    if (hasSoilHumidity) {
+      const value = Number(soilHumidity);
+      if (!Number.isFinite(value) || value < 0 || value > 100) {
+        return res.status(400).json({ error: 'soilHumidity must be a number between 0 and 100' });
+      }
+      data.soilHumidity = value;
+    }
+
     if (eggs !== undefined && eggs !== null) data.eggs = Number(eggs);
     if (fertilizer !== undefined && fertilizer !== null) data.fertilizer = Number(fertilizer);
-    if (timestamp) data.createdAt = new Date(timestamp);
+    if (timestamp) {
+      const parsedTimestamp = new Date(timestamp);
+      if (Number.isNaN(parsedTimestamp.getTime())) {
+        return res.status(400).json({ error: 'timestamp must be a valid date' });
+      }
+      data.createdAt = parsedTimestamp;
+    }
 
-    // Salva no banco de dados
     const created = await prisma.sensorReading.create({ data });
 
-    // Emite evento para frontend (Socket.io - tempo real)
     const io = req.app.get('io');
-    if (io) io.emit('sensor:update', created);
+    if (io) io.emit('sensor:update', await getLatestReading());
 
-    // Retorna confirmação com dados salvos
     res.json({ ok: true, created });
   } catch (err) {
     console.error(err);

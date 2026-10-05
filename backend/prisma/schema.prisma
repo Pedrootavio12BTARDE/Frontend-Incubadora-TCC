@@ -18,9 +18,10 @@ model User {
 
 model SensorReading {
   id          Int      @id @default(autoincrement())
-  temperature Float
-  humidity    Float
-  eggs        Int?     
+  temperature Float?
+  humidity    Float?
+  soilHumidity Float?
+  eggs        Int?
   fertilizer  Int?     
   createdAt   DateTime @default(now())
 }
@@ -31,6 +32,18 @@ model ActuatorLog {
   action    String
   payload   String?
   createdAt DateTime @default(now())
+}
+
+model ActuatorCommand {
+  id             Int       @id @default(autoincrement())
+  actuator       String
+  action         String
+  durationMs     Int
+  status         String    @default("pending")
+  createdAt      DateTime  @default(now())
+  acknowledgedAt DateTime?
+
+  @@index([status, createdAt])
 }
 
 model Production {

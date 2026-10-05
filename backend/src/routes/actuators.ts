@@ -61,6 +61,54 @@ router.get('/status', async (req, res) => {
   }
 });
 
+router.get('/state', async (_req, res) => {
+  try {
+    const lampLog = await prisma.actuatorLog.findFirst({
+      where: { actuator: 'lamp' },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    res.json({ lamp: lampLog?.action === 'on' ? 'on' : 'off' });
+  } catch (err) {
+    res.status(500).json({ error: 'failed to get actuator state' });
+  }
+});
+
+router.get('/commands/pending', async (_req, res) => {
+  try {
+    const commands = await prisma.actuatorCommand.findMany({
+      where: { status: 'pending' },
+      orderBy: { createdAt: 'asc' },
+      take: 20,
+    });
+    res.json({ commands });
+  } catch (err) {
+    res.status(500).json({ error: 'failed to get pending actuator commands' });
+  }
+});
+
+router.patch('/commands/:id/ack', async (req, res) => {
+  try {
+    const id = Number(req.params.id);
+    if (!Number.isInteger(id) || id <= 0) {
+      return res.status(400).json({ error: 'command id must be a positive integer' });
+    }
+
+    const updated = await prisma.actuatorCommand.updateMany({
+      where: { id, status: 'pending' },
+      data: { status: 'completed', acknowledgedAt: new Date() },
+    });
+
+    if (updated.count === 0) {
+      return res.status(404).json({ error: 'pending command not found' });
+    }
+
+    res.json({ ok: true, id, status: 'completed' });
+  } catch (err) {
+    res.status(500).json({ error: 'failed to acknowledge actuator command' });
+  }
+});
+
 /**
  * PATCH /api/v1/actuators/lamp
  * 
@@ -92,6 +140,9 @@ router.get('/status', async (req, res) => {
 router.patch('/lamp', async (req, res) => {
   try {
     const { on } = req.body;
+    if (typeof on !== 'boolean') {
+      return res.status(400).json({ error: 'on must be a boolean' });
+    }
     
     // Cria registro de log
     const payload = { 
@@ -108,6 +159,33 @@ router.patch('/lamp', async (req, res) => {
     res.json({ ok: true, created });
   } catch (err) {
     res.status(500).json({ error: 'failed to update lamp' });
+  }
+});
+
+router.post('/motor/rotate', async (req, res) => {
+  try {
+    const durationMs = req.body?.durationMs === undefined ? 1000 : Number(req.body.durationMs);
+    if (!Number.isInteger(durationMs) || durationMs < 100 || durationMs > 10000) {
+      return res.status(400).json({ error: 'durationMs must be an integer between 100 and 10000' });
+    }
+
+    const command = await prisma.actuatorCommand.create({
+      data: { actuator: 'motor', action: 'rotate', durationMs },
+    });
+
+    const io = req.app.get('io');
+    if (io) {
+      io.emit('actuator:update', {
+        actuator: 'motor',
+        action: 'rotate',
+        commandId: command.id,
+        durationMs: command.durationMs,
+      });
+    }
+
+    res.status(201).json({ ok: true, command });
+  } catch (err) {
+    res.status(500).json({ error: 'failed to queue motor rotation' });
   }
 });
 
