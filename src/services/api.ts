@@ -84,7 +84,7 @@ export async function sendSensorData(data: SensorReading): Promise<SensorReading
 // ============================================================================
 
 export interface ActuatorStatus {
-  lamp?: boolean;
+  lamp?: boolean | 'on' | 'off' | 'unknown';
   fan?: 'on' | 'off' | 'auto';
   lastUpdated?: string;
 }
@@ -115,6 +115,16 @@ export async function setFan(state: 'on' | 'off' | 'auto'): Promise<{ success: b
   return fetchAPI('/actuators/fan', {
     method: 'PATCH',
     body: JSON.stringify({ state }),
+  });
+}
+
+export async function rotateMotor(durationMs: number = 3000): Promise<{
+  ok: boolean;
+  command: { id: number; durationMs: number; status: string };
+}> {
+  return fetchAPI('/actuators/motor/rotate', {
+    method: 'POST',
+    body: JSON.stringify({ durationMs }),
   });
 }
 

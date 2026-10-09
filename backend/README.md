@@ -46,6 +46,11 @@ confirms it with `PATCH /api/v1/actuators/commands/:id/ack`. Keep the command ID
 locally until acknowledged; persist/deduplicate processed IDs on the ESP32 so a
 repeated poll does not cause a second rotation.
 
+In the current dashboard, **Ativar Rolagem** requests a 3000 ms rotation. The
+firmware drives the motor relay on GPIO23, active LOW, and stops it with
+`millis()` rather than blocking delays. Connect the DC motor through the relay
+contacts and its 5 V supply; do not power it from an ESP32 GPIO.
+
 Use the backend's reachable LAN address while testing locally, then its HTTPS
 domain in production. Do not expose the database port to the ESP32; only the API
 should be reachable from the device. The API routes currently do not enforce

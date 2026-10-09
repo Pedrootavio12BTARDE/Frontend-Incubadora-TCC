@@ -2,10 +2,11 @@
 #include <HTTPClient.h>
 #include <ArduinoJson.h>
 #include <DHT.h>
+#include <Preferences.h>
 #include <math.h>
 
-const char* WIFI_SSID = "Esp32_IoT";
-const char* WIFI_PASSWORD = "incubadora";
+const char* WIFI_SSID = "Isadireito 2.4Ghz";
+const char* WIFI_PASSWORD = "pedrocas88";
 
 // Use o IP do computador na rede local durante os testes.
 const char* API_BASE_URL = "http://192.168.18.238:3001/api/v1";
@@ -13,6 +14,7 @@ const char* API_BASE_URL = "http://192.168.18.238:3001/api/v1";
 constexpr uint8_t DHT_PIN = 26;
 constexpr uint8_t SOIL_SENSOR_PIN = 35;
 constexpr uint8_t LAMP_RELAY_PIN = 14;
+constexpr uint8_t MOTOR_RELAY_PIN = 23;
 constexpr uint8_t BUTTON_PIN = 32;
 constexpr uint8_t DHT_TYPE = DHT11;
 
@@ -22,22 +24,30 @@ constexpr int SOIL_DRY_RAW = 3200;
 constexpr int SOIL_WET_RAW = 1400;
 
 constexpr bool RELAY_ACTIVE_LOW = true;
+constexpr bool MOTOR_RELAY_ACTIVE_LOW = true;
 constexpr unsigned long SENSOR_INTERVAL_MS = 5000;
 constexpr unsigned long LAMP_POLL_INTERVAL_MS = 2000;
-constexpr unsigned long WIFI_RETRY_INTERVAL_MS = 10000;
+constexpr unsigned long MOTOR_COMMAND_POLL_INTERVAL_MS = 1000;
 constexpr unsigned long BUTTON_DEBOUNCE_MS = 50;
 
 DHT dht(DHT_PIN, DHT_TYPE);
+Preferences preferences;
 
 unsigned long lastSensorPost = 0;
 unsigned long lastLampPoll = 0;
 unsigned long lastLampSync = 0;
-unsigned long lastWifiAttempt = 0;
+unsigned long lastWifiDiagnostic = 0;
+unsigned long lastMotorCommandPoll = 0;
 unsigned long lastButtonChange = 0;
 
 bool wifiStarted = false;
+bool wifiWasConnected = false;
 bool lampIsOn = false;
 bool lampNeedsSync = false;
+bool motorRunning = false;
+uint32_t motorStopAt = 0;
+uint32_t currentMotorCommandId = 0;
+uint32_t lastProcessedMotorCommandId = 0;
 int lastButtonReading = HIGH;
 int stableButtonState = HIGH;
 
@@ -47,6 +57,14 @@ int relayOnLevel() {
 
 int relayOffLevel() {
   return RELAY_ACTIVE_LOW ? HIGH : LOW;
+}
+
+int motorRelayOnLevel() {
+  return MOTOR_RELAY_ACTIVE_LOW ? LOW : HIGH;
+}
+
+int motorRelayOffLevel() {
+  return MOTOR_RELAY_ACTIVE_LOW ? HIGH : LOW;
 }
 
 String apiUrl(const String& path) {
@@ -71,21 +89,6 @@ float readSoilHumidityPercent(int rawValue) {
     static_cast<float>(SOIL_DRY_RAW - SOIL_WET_RAW);
 
   return constrain(percentage, 0.0f, 100.0f);
-}
-
-void startOrReconnectWifi(unsigned long now) {
-  if (WiFi.status() == WL_CONNECTED ||
-      now - lastWifiAttempt < WIFI_RETRY_INTERVAL_MS) {
-    return;
-  }
-
-  lastWifiAttempt = now;
-  if (!wifiStarted) {
-    WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
-    wifiStarted = true;
-  } else {
-    WiFi.reconnect();
-  }
 }
 
 bool sendLampCommand(bool on) {
@@ -148,13 +151,105 @@ void pollLampState() {
 
     if (!error) {
       const char* state = response["lamp"] | "off";
-      applyLamp(strcmp(state, "on") == 0);
+      const bool requestedLampState = strcmp(state, "on") == 0;
+      applyLamp(requestedLampState);
+      Serial.printf("Estado recebido da API: lamp=%s; GPIO14=%s (%d)\n",
+                    state,
+                    requestedLampState ? "ligado" : "desligado",
+                    requestedLampState ? relayOnLevel() : relayOffLevel());
+    } else {
+      Serial.printf("JSON invalido ao consultar lampada: %s\n", error.c_str());
     }
   } else {
     Serial.printf("Consulta do estado da lampada: HTTP %d\n", status);
   }
 
   http.end();
+}
+
+bool acknowledgeMotorCommand(uint32_t commandId) {
+  if (WiFi.status() != WL_CONNECTED) return false;
+
+  HTTPClient http;
+  const String path = "/actuators/commands/" + String(commandId) + "/ack";
+  if (!beginRequest(http, path)) return false;
+
+  http.addHeader("Content-Type", "application/json");
+  const int status = http.sendRequest("PATCH", "{}");
+  http.end();
+  Serial.printf("Confirmacao do comando do motor %lu: HTTP %d\n",
+                static_cast<unsigned long>(commandId), status);
+  return status >= 200 && status < 300;
+}
+
+void finishMotorRotation() {
+  digitalWrite(MOTOR_RELAY_PIN, motorRelayOffLevel());
+  motorRunning = false;
+  Serial.printf("Motor desligado; comando %lu concluido.\n",
+                static_cast<unsigned long>(currentMotorCommandId));
+
+  if (currentMotorCommandId != 0 && acknowledgeMotorCommand(currentMotorCommandId)) {
+    currentMotorCommandId = 0;
+  }
+}
+
+void serviceMotorTimer() {
+  if (motorRunning && static_cast<int32_t>(millis() - motorStopAt) >= 0) {
+    finishMotorRotation();
+  }
+}
+
+void pollMotorCommands() {
+  if (WiFi.status() != WL_CONNECTED || motorRunning) return;
+
+  HTTPClient http;
+  if (!beginRequest(http, "/actuators/commands/pending")) return;
+
+  const int status = http.GET();
+  if (status != HTTP_CODE_OK) {
+    Serial.printf("Consulta dos comandos do motor: HTTP %d\n", status);
+    http.end();
+    return;
+  }
+
+  StaticJsonDocument<4096> response;
+  const DeserializationError error = deserializeJson(response, http.getString());
+  http.end();
+  if (error) {
+    Serial.printf("JSON invalido na fila do motor: %s\n", error.c_str());
+    return;
+  }
+
+  JsonArray commands = response["commands"].as<JsonArray>();
+  for (JsonObject command : commands) {
+    const uint32_t commandId = command["id"] | 0;
+    const char* actuator = command["actuator"] | "";
+    const char* action = command["action"] | "";
+    if (commandId == 0 || strcmp(actuator, "motor") != 0 || strcmp(action, "rotate") != 0) {
+      continue;
+    }
+
+    if (commandId <= lastProcessedMotorCommandId) {
+      acknowledgeMotorCommand(commandId);
+      continue;
+    }
+
+    uint32_t durationMs = command["durationMs"] | 3000;
+    durationMs = constrain(durationMs, 100U, 10000U);
+
+    // Persistir antes de energizar evita repetir uma rolagem após reinicialização.
+    lastProcessedMotorCommandId = commandId;
+    preferences.putUInt("lastMotorCmd", lastProcessedMotorCommandId);
+    currentMotorCommandId = commandId;
+    motorStopAt = millis() + durationMs;
+    motorRunning = true;
+    digitalWrite(MOTOR_RELAY_PIN, motorRelayOnLevel());
+    Serial.printf("Motor ligado por %lu ms; comando %lu; GPIO23=%d\n",
+                  static_cast<unsigned long>(durationMs),
+                  static_cast<unsigned long>(commandId),
+                  motorRelayOnLevel());
+    break;
+  }
 }
 
 void postSensorReadings() {
@@ -194,18 +289,23 @@ void setup() {
 
   pinMode(LAMP_RELAY_PIN, OUTPUT);
   digitalWrite(LAMP_RELAY_PIN, relayOffLevel());
+  pinMode(MOTOR_RELAY_PIN, OUTPUT);
+  digitalWrite(MOTOR_RELAY_PIN, motorRelayOffLevel());
 
   // Ligue o botao entre GPIO32 e GND.
   pinMode(BUTTON_PIN, INPUT_PULLUP);
 
   analogReadResolution(12);
   dht.begin();
+  preferences.begin("ecoincubadora", false);
+  lastProcessedMotorCommandId = preferences.getUInt("lastMotorCmd", 0);
 
   WiFi.mode(WIFI_STA);
+  WiFi.setAutoReconnect(true);
   WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
   wifiStarted = true;
-  lastWifiAttempt = millis();
 
+  Serial.println("Conectando ao Wi-Fi...");
   Serial.println("EcoIncubadora ESP32 iniciada.");
 }
 
@@ -213,18 +313,40 @@ void loop() {
   const unsigned long now = millis();
 
   handlePhysicalButton(now);
-  startOrReconnectWifi(now);
+  serviceMotorTimer();
 
-  if (WiFi.status() != WL_CONNECTED) return;
+  const bool wifiConnected = WiFi.status() == WL_CONNECTED;
+  if (wifiConnected && !wifiWasConnected) {
+    Serial.printf("Wi-Fi conectado. IP do ESP32: %s\n", WiFi.localIP().toString().c_str());
+  } else if (!wifiConnected && wifiWasConnected) {
+    Serial.println("Wi-Fi desconectado.");
+  }
+  wifiWasConnected = wifiConnected;
 
-  syncLocalLampCommand(now);
+  if (!wifiConnected) {
+    if (now - lastWifiDiagnostic >= 5000) {
+      lastWifiDiagnostic = now;
+      Serial.printf("Wi-Fi ainda desconectado: status=%d, SSID=%s\n",
+                    static_cast<int>(WiFi.status()), WIFI_SSID);
+    }
+    return;
+  }
 
-  if (now - lastSensorPost >= SENSOR_INTERVAL_MS) {
+  if (!motorRunning) {
+    syncLocalLampCommand(now);
+  }
+
+  if (!motorRunning && now - lastMotorCommandPoll >= MOTOR_COMMAND_POLL_INTERVAL_MS) {
+    lastMotorCommandPoll = now;
+    pollMotorCommands();
+  }
+
+  if (!motorRunning && now - lastSensorPost >= SENSOR_INTERVAL_MS) {
     lastSensorPost = now;
     postSensorReadings();
   }
 
-  if (!lampNeedsSync && now - lastLampPoll >= LAMP_POLL_INTERVAL_MS) {
+  if (!motorRunning && !lampNeedsSync && now - lastLampPoll >= LAMP_POLL_INTERVAL_MS) {
     lastLampPoll = now;
     pollLampState();
   }

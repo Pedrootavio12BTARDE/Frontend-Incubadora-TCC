@@ -59,7 +59,11 @@ export function IncubationCard({
     getActuatorStatus()
       .then((status) => {
         if (status.lamp !== undefined) {
-          setLampOn(status.lamp);
+            if (typeof status.lamp === 'boolean') {
+              setLampOn(status.lamp);
+            } else if (status.lamp === 'on' || status.lamp === 'off') {
+              setLampOn(status.lamp === 'on');
+            }
         }
       })
       .catch((error) => console.error('Erro ao carregar status do atuador:', error));
@@ -107,10 +111,10 @@ export function IncubationCard({
           {/* Switch Toggle */}
           <button
             onClick={handleToggleLamp}
-            disabled={isLoading || !isConnected}
+            disabled={isLoading}
             className={`relative w-12 h-6 rounded-full transition-all duration-300 ${
               lampOn ? 'bg-gradient-to-r from-[#98FFD9] to-[#6EDDC4]' : 'bg-gray-300'
-            } ${isLoading || !isConnected ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
+            } ${isLoading ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
           >
             <div className={`absolute top-0.5 w-5 h-5 bg-white rounded-full shadow-md transition-all duration-300 ${lampOn ? 'left-[26px]' : 'left-0.5'}`} />
           </button>
