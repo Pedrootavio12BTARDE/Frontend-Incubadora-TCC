@@ -31,6 +31,7 @@ constexpr unsigned long BUTTON_DEBOUNCE_MS = 50;
 DHT dht(DHT_PIN, DHT_TYPE);
 Preferences preferences;
 WiFiClientSecure secureClient;
+StaticJsonDocument<4096> motorCommandResponse;
 
 unsigned long lastSensorPost = 0;
 unsigned long lastLampPoll = 0;
@@ -220,15 +221,15 @@ void pollMotorCommands() {
     return;
   }
 
-  StaticJsonDocument<4096> response;
-  const DeserializationError error = deserializeJson(response, http.getString());
+  motorCommandResponse.clear();
+  const DeserializationError error = deserializeJson(motorCommandResponse, http.getString());
   http.end();
   if (error) {
     Serial.printf("JSON invalido na fila do motor: %s\n", error.c_str());
     return;
   }
 
-  JsonArray commands = response["commands"].as<JsonArray>();
+  JsonArray commands = motorCommandResponse["commands"].as<JsonArray>();
   for (JsonObject command : commands) {
     const uint32_t commandId = command["id"] | 0;
     const char* actuator = command["actuator"] | "";
