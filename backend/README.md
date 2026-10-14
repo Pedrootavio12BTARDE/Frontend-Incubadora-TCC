@@ -53,8 +53,9 @@ contacts and its 5 V supply; do not power it from an ESP32 GPIO.
 
 Use the backend's reachable LAN address while testing locally, then its HTTPS
 domain in production. Do not expose the database port to the ESP32; only the API
-should be reachable from the device. The API routes currently do not enforce
-authentication, so protect them before exposing the backend publicly.
+should be reachable from the device. The Render demo intentionally leaves sensor
+and actuator routes public for the presentation; anyone who knows the URL can
+send commands. Do not use this configuration for unattended or real incubation.
 
 Apply the new database migration before restarting the backend:
 

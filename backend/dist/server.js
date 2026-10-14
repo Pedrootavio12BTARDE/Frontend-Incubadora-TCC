@@ -30,19 +30,33 @@ const routes_1 = __importDefault(require("./routes"));
 dotenv_1.default.config();
 // Configurações
 const PORT = process.env.PORT || 3001;
+const allowedOrigins = process.env.ALLOWED_ORIGINS
+    ?.split(',')
+    .map((origin) => origin.trim())
+    .filter(Boolean) ?? [];
+if (process.env.NODE_ENV === 'production') {
+    if (!process.env.JWT_SECRET || process.env.JWT_SECRET.length < 32) {
+        throw new Error('JWT_SECRET must contain at least 32 characters in production');
+    }
+    if (!process.env.DATABASE_URL?.startsWith('postgresql://') && !process.env.DATABASE_URL?.startsWith('postgres://')) {
+        throw new Error('Production DATABASE_URL must point to PostgreSQL');
+    }
+}
 // Inicializa Express app
 const app = (0, express_1.default)();
+if (process.env.NODE_ENV === 'production')
+    app.set('trust proxy', 1);
 // Cria servidor HTTP (necessário para Socket.io)
 const server = http_1.default.createServer(app);
 // Configura Socket.io com CORS para aceitar conexões do frontend
 const io = new socket_io_1.Server(server, {
-    cors: { origin: process.env.ALLOWED_ORIGINS?.split(',') || '*' }
+    cors: { origin: allowedOrigins.length > 0 ? allowedOrigins : process.env.NODE_ENV === 'production' ? [] : '*' }
 });
 // ====================================================================
 // MIDDLEWARES (processam requisições antes das rotas)
 // ====================================================================
 // Permite requisições de origem diferente (ex: frontend em outra porta/host)
-app.use((0, cors_1.default)({ origin: process.env.ALLOWED_ORIGINS?.split(',') }));
+app.use((0, cors_1.default)({ origin: allowedOrigins.length > 0 ? allowedOrigins : process.env.NODE_ENV === 'production' ? false : '*' }));
 // Parseia corpo da requisição como JSON
 app.use(express_1.default.json());
 // Anexa instância de Socket.io ao app para uso em rotas

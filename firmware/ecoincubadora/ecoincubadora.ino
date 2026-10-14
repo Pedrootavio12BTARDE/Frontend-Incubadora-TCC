@@ -1,12 +1,11 @@
 #include <WiFi.h>
 #include <HTTPClient.h>
+#include <WiFiClientSecure.h>
 #include <ArduinoJson.h>
 #include <DHT.h>
 #include <Preferences.h>
 #include <math.h>
-
-const char* WIFI_SSID = "Isadireito 2.4Ghz";
-const char* WIFI_PASSWORD = "pedrocas88";
+#include "secrets.h"
 
 // Use o IP do computador na rede local durante os testes.
 const char* API_BASE_URL = "http://192.168.18.238:3001/api/v1";
@@ -32,6 +31,7 @@ constexpr unsigned long BUTTON_DEBOUNCE_MS = 50;
 
 DHT dht(DHT_PIN, DHT_TYPE);
 Preferences preferences;
+WiFiClientSecure secureClient;
 
 unsigned long lastSensorPost = 0;
 unsigned long lastLampPoll = 0;
@@ -72,8 +72,17 @@ String apiUrl(const String& path) {
 }
 
 bool beginRequest(HTTPClient& http, const String& path) {
-  http.setTimeout(2500);
-  return http.begin(apiUrl(path));
+  http.setTimeout(10000);
+  const String url = apiUrl(path);
+  if (url.startsWith("https://")) {
+    if (strlen(RENDER_ROOT_CA_CERT) == 0) {
+      Serial.println("HTTPS bloqueado: configure a CA raiz do certificado Render em secrets.h.");
+      return false;
+    }
+    secureClient.setCACert(RENDER_ROOT_CA_CERT);
+    return http.begin(secureClient, url);
+  }
+  return http.begin(url);
 }
 
 void applyLamp(bool on) {

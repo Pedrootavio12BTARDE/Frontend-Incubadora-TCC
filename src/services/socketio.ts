@@ -30,9 +30,10 @@ class SocketIOService {
         return;
       }
 
-const socketURL =
-  import.meta.env.VITE_BACKEND_URL || 
-  (import.meta.env.DEV ? 'http://localhost:3001' : window.location.origin);
+const socketURL = (
+  import.meta.env.VITE_BACKEND_URL ||
+  (import.meta.env.DEV ? 'http://localhost:3001' : window.location.origin)
+).replace(/\/+$/, '');
       this.socket = io(socketURL, {
         reconnection: true,
         reconnectionDelay: 1000,

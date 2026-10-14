@@ -1,37 +1,55 @@
 import { Thermometer, Droplet, Lightbulb, Wifi, WifiOff } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useSocket } from "../../hooks/useSocket";
-import { setLamp, getActuatorStatus } from "../../services/api";
+import { setLamp, getActuatorStatus, getLatestSensorReading, type SensorReading } from "../../services/api";
 
 interface IncubationCardProps {
-  temperature?: number;
-  humidity?: number;
   lampOn?: boolean;
   onToggleLamp?: () => void;
   darkMode?: boolean;
 }
 
 export function IncubationCard({ 
-  temperature: defaultTemp = 28, 
-  humidity: defaultHumidity = 65, 
   lampOn: defaultLampOn = false, 
   onToggleLamp,
   darkMode = false 
 }: IncubationCardProps) {
-  // Local state for real-time data
-  const [temperature, setTemperature] = useState(defaultTemp);
-  const [humidity, setHumidity] = useState(defaultHumidity);
+  const [temperature, setTemperature] = useState<number | null>(null);
+  const [humidity, setHumidity] = useState<number | null>(null);
   const [lampOn, setLampOn] = useState(defaultLampOn);
   const [isLoading, setIsLoading] = useState(false);
 
   // Socket.io hook - listens to sensor:update events
-  const { data: sensorUpdate, isConnected } = useSocket('sensor:update');
+  const { data: sensorUpdate, isConnected } = useSocket<SensorReading>('sensor:update');
 
-  // Update state when Socket.io sends new sensor data
+  // Load the latest persisted values when the dashboard opens.
   useEffect(() => {
-    if (sensorUpdate) {
-      setTemperature(sensorUpdate.temperature || temperature);
-      setHumidity(sensorUpdate.humidity || humidity);
+    let active = true;
+    getLatestSensorReading()
+      .then((reading) => {
+        if (!active || !reading) return;
+        if (reading.temperature !== undefined && reading.temperature !== null) {
+          setTemperature(reading.temperature);
+        }
+        if (reading.humidity !== undefined && reading.humidity !== null) {
+          setHumidity(reading.humidity);
+        }
+      })
+      .catch((error) => console.error('Erro ao carregar leituras dos sensores:', error));
+
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  // Merge each sensor event without replacing values the sensor did not send.
+  useEffect(() => {
+    if (!sensorUpdate) return;
+    if (sensorUpdate.temperature !== undefined && sensorUpdate.temperature !== null) {
+      setTemperature(sensorUpdate.temperature);
+    }
+    if (sensorUpdate.humidity !== undefined && sensorUpdate.humidity !== null) {
+      setHumidity(sensorUpdate.humidity);
     }
   }, [sensorUpdate]);
 
@@ -139,7 +157,7 @@ export function IncubationCard({
                 filter: 'drop-shadow(0 0 8px rgba(255,107,107,0.2))'
               }}
             >
-              {temperature.toFixed(1)}°C
+              {temperature === null ? "--.-" : temperature.toFixed(1)}°C
             </div>
             <div className={`text-[10px] transition-colors duration-300 ${darkMode ? 'text-white/70' : 'text-[#001F3F] opacity-60'}`} style={{ fontFamily: 'Quicksand, sans-serif', fontWeight: 500 }}>
               Temperatura
@@ -164,7 +182,7 @@ export function IncubationCard({
                 filter: 'drop-shadow(0 0 8px rgba(152,255,217,0.2))'
               }}
             >
-              {humidity.toFixed(1)}%
+              {humidity === null ? "--.-" : humidity.toFixed(1)}%
             </div>
             <div className={`text-[10px] transition-colors duration-300 ${darkMode ? 'text-white/70' : 'text-[#001F3F] opacity-60'}`} style={{ fontFamily: 'Quicksand, sans-serif', fontWeight: 500 }}>
               Umidade

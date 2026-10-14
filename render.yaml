@@ -1,0 +1,18 @@
+services:
+  - type: web
+    name: ecoincubadora-backend
+    runtime: node
+    plan: free
+    rootDir: backend
+    buildCommand: npm ci && npm run prisma:generate:render && npm run build
+    startCommand: npm run prisma:migrate:deploy:render && npm start
+    healthCheckPath: /api/v1/status
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: DATABASE_URL
+        sync: false
+      - key: JWT_SECRET
+        generateValue: true
+      - key: ALLOWED_ORIGINS
+        sync: false

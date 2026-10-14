@@ -228,6 +228,7 @@ export function DesktopApp() {
               isDesktop={true}
               onBack={() => navigate("dashboard")}
               onToggleDarkMode={() => setDarkMode(d => !d)}
+              onLoginSuccess={() => navigate("dashboard")}
             />
 
           ) : currentScreen === "instructions" ? (
@@ -304,8 +305,6 @@ export function DesktopApp() {
                   darkMode={dm}
                 />
                 <IncubationCard
-                  temperature={37.8}
-                  humidity={60}
                   lampOn={lampOn}
                   onToggleLamp={() => setLampOn(l => !l)}
                   darkMode={dm}

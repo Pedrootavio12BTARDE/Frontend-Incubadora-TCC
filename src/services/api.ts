@@ -12,7 +12,7 @@
 
 const getAPIBaseURL = () => {
   if (import.meta.env.PROD && import.meta.env.VITE_BACKEND_URL) {
-    return `${import.meta.env.VITE_BACKEND_URL}/api/v1`;
+    return `${import.meta.env.VITE_BACKEND_URL.replace(/\/+$/, '')}/api/v1`;
   }
   return '/api/v1';
 };
@@ -32,6 +32,7 @@ async function fetchAPI<T>(
     const response = await fetch(url, {
       headers: {
         'Content-Type': 'application/json',
+        ...getAuthHeaders(),
         ...options.headers,
       },
       ...options,
@@ -53,18 +54,22 @@ async function fetchAPI<T>(
 // ============================================================================
 
 export interface SensorReading {
-  id?: string;
-  temperature: number;
-  humidity: number;
-  eggs?: number;
-  fertilizer?: number;
+  id?: number;
+  temperature?: number | null;
+  humidity?: number | null;
+  soilHumidity?: number | null;
+  eggs?: number | null;
+  fertilizer?: number | null;
   createdAt?: string;
+  temperatureCreatedAt?: string | null;
+  humidityCreatedAt?: string | null;
+  soilHumidityCreatedAt?: string | null;
 }
 
 /**
  * Get the latest sensor readings (temperature, humidity, eggs, fertilizer)
  */
-export async function getLatestSensorReading(): Promise<SensorReading> {
+export async function getLatestSensorReading(): Promise<SensorReading | null> {
   return fetchAPI<SensorReading>('/sensors/latest');
 }
 
@@ -166,14 +171,13 @@ export async function incrementProduction(
 // ============================================================================
 
 export interface AuthResponse {
-  success: boolean;
-  user?: {
-    id: string;
+  token: string;
+  user: {
+    id: number;
     email: string;
-    name: string;
+    name: string | null;
     role: string;
   };
-  token?: string;
 }
 
 /**
@@ -187,10 +191,20 @@ export async function login(email: string, password: string): Promise<AuthRespon
   });
 
   // Store token in localStorage if successful
-  if (response.token) {
-    localStorage.setItem('authToken', response.token);
-  }
+  localStorage.setItem('authToken', response.token);
 
+  return response;
+}
+
+export async function register(
+  email: string,
+  password: string,
+): Promise<AuthResponse> {
+  const response = await fetchAPI<AuthResponse>('/auth/register', {
+    method: 'POST',
+    body: JSON.stringify({ email, password }),
+  });
+  localStorage.setItem('authToken', response.token);
   return response;
 }
 

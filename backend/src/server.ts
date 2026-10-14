@@ -28,16 +28,30 @@ dotenv.config();
 
 // Configurações
 const PORT = process.env.PORT || 3001;
+const allowedOrigins = process.env.ALLOWED_ORIGINS
+  ?.split(',')
+  .map((origin) => origin.trim())
+  .filter(Boolean) ?? [];
+
+if (process.env.NODE_ENV === 'production') {
+  if (!process.env.JWT_SECRET || process.env.JWT_SECRET.length < 32) {
+    throw new Error('JWT_SECRET must contain at least 32 characters in production');
+  }
+  if (!process.env.DATABASE_URL?.startsWith('postgresql://') && !process.env.DATABASE_URL?.startsWith('postgres://')) {
+    throw new Error('Production DATABASE_URL must point to PostgreSQL');
+  }
+}
 
 // Inicializa Express app
 const app = express();
+if (process.env.NODE_ENV === 'production') app.set('trust proxy', 1);
 
 // Cria servidor HTTP (necessário para Socket.io)
 const server = http.createServer(app);
 
 // Configura Socket.io com CORS para aceitar conexões do frontend
 const io = new IOServer(server, {
-  cors: { origin: process.env.ALLOWED_ORIGINS?.split(',') || '*' }
+  cors: { origin: allowedOrigins.length > 0 ? allowedOrigins : process.env.NODE_ENV === 'production' ? [] : '*' }
 });
 
 // ====================================================================
@@ -45,7 +59,7 @@ const io = new IOServer(server, {
 // ====================================================================
 
 // Permite requisições de origem diferente (ex: frontend em outra porta/host)
-app.use(cors({ origin: process.env.ALLOWED_ORIGINS?.split(',') }));
+app.use(cors({ origin: allowedOrigins.length > 0 ? allowedOrigins : process.env.NODE_ENV === 'production' ? false : '*' }));
 
 // Parseia corpo da requisição como JSON
 app.use(express.json());

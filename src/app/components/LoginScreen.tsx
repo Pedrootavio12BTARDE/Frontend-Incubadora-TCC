@@ -1,23 +1,49 @@
 import { useState } from "react";
 import { Mail, Lock, Wifi, Activity, Thermometer, Droplets, Home, Moon, Sun } from "lucide-react";
 import logoImg from "../../imports/logo_cerebro.png";
+import { login, register } from "../../services/api";
 
 interface LoginScreenProps {
   darkMode?: boolean;
   isDesktop?: boolean;
   onBack?: () => void;
   onToggleDarkMode?: () => void;
+  onLoginSuccess?: () => void;
 }
 
-export function LoginScreen({ darkMode = false, isDesktop = false, onBack, onToggleDarkMode }: LoginScreenProps) {
+export function LoginScreen({ darkMode = false, isDesktop = false, onBack, onToggleDarkMode, onLoginSuccess }: LoginScreenProps) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [isSignUp, setIsSignUp] = useState(false);
   const [confirmPassword, setConfirmPassword] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [errorMessage, setErrorMessage] = useState("");
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    console.log(isSignUp ? "Sign Up" : "Login", { email, password });
+    setErrorMessage("");
+
+    if (isSignUp && password !== confirmPassword) {
+      setErrorMessage("As senhas não coincidem.");
+      return;
+    }
+
+    setIsSubmitting(true);
+    try {
+      if (isSignUp) {
+        await register(email, password);
+      } else {
+        await login(email, password);
+      }
+      onLoginSuccess?.();
+    } catch (error) {
+      console.error("Falha na autenticação:", error);
+      setErrorMessage(isSignUp
+        ? "Não foi possível criar a conta. Confira o e-mail e use uma senha com pelo menos 8 caracteres."
+        : "E-mail ou senha inválidos.");
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -77,7 +103,7 @@ export function LoginScreen({ darkMode = false, isDesktop = false, onBack, onTog
           {/* Tab Switcher */}
           <div className="flex gap-2 lg:gap-4 mb-6 lg:mb-8">
             <button
-              onClick={() => setIsSignUp(false)}
+              onClick={() => { setIsSignUp(false); setErrorMessage(""); }}
               className={`flex-1 py-2 lg:py-3 rounded-lg text-xs lg:text-sm font-bold transition-all duration-300 ${
                 !isSignUp
                   ? 'bg-gradient-to-r from-[#98FFD9] to-[#6EDDC4] text-[#001F3F] shadow-[0_4px_20px_rgba(152,255,217,0.4)]'
@@ -88,7 +114,7 @@ export function LoginScreen({ darkMode = false, isDesktop = false, onBack, onTog
               LOGIN
             </button>
             <button
-              onClick={() => setIsSignUp(true)}
+              onClick={() => { setIsSignUp(true); setErrorMessage(""); }}
               className={`flex-1 py-2 lg:py-3 rounded-lg text-xs lg:text-sm font-bold transition-all duration-300 ${
                 isSignUp
                   ? 'bg-gradient-to-r from-[#98FFD9] to-[#6EDDC4] text-[#001F3F] shadow-[0_4px_20px_rgba(152,255,217,0.4)]'
@@ -144,6 +170,7 @@ export function LoginScreen({ darkMode = false, isDesktop = false, onBack, onTog
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder="••••••••"
                   required
+                  minLength={isSignUp ? 8 : undefined}
                   className="w-full bg-white/10 border-2 border-white/20 rounded-lg pl-10 lg:pl-12 pr-4 py-2.5 lg:py-3.5 text-white placeholder:text-white/40 focus:outline-none focus:border-[#98FFD9] focus:bg-white/15 transition-all duration-300 text-sm lg:text-base"
                   style={{ fontFamily: 'Quicksand, sans-serif', fontWeight: 500 }}
                 />
@@ -176,13 +203,20 @@ export function LoginScreen({ darkMode = false, isDesktop = false, onBack, onTog
               </div>
             )}
 
+            {errorMessage && (
+              <p role="alert" className="text-sm text-red-300" aria-live="polite">
+                {errorMessage}
+              </p>
+            )}
+
             {/* Submit Button */}
             <button
               type="submit"
-              className="w-full py-3 lg:py-4 rounded-lg text-[#001F3F] text-xs lg:text-base uppercase tracking-wide shadow-lg hover:shadow-xl transition-all duration-300 mt-6 lg:mt-8 bg-gradient-to-r from-[#98FFD9] to-[#6EDDC4] hover:from-[#6EDDC4] hover:to-[#98FFD9] shadow-[0_8px_24px_rgba(152,255,217,0.4)]"
+              disabled={isSubmitting}
+              className="w-full py-3 lg:py-4 rounded-lg text-[#001F3F] text-xs lg:text-base uppercase tracking-wide hover:shadow-xl transition-all duration-300 mt-6 lg:mt-8 bg-gradient-to-r from-[#98FFD9] to-[#6EDDC4] hover:from-[#6EDDC4] hover:to-[#98FFD9] shadow-[0_8px_24px_rgba(152,255,217,0.4)] disabled:opacity-60"
               style={{ fontFamily: 'Quicksand, sans-serif', fontWeight: 900 }}
             >
-              {isSignUp ? 'CREATE ACCOUNT' : 'LOGIN'}
+              {isSubmitting ? 'AGUARDE...' : isSignUp ? 'CREATE ACCOUNT' : 'LOGIN'}
             </button>
           </form>
 
