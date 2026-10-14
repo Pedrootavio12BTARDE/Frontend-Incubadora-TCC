@@ -7,8 +7,7 @@
 #include <math.h>
 #include "secrets.h"
 
-// Use o IP do computador na rede local durante os testes.
-const char* API_BASE_URL = "http://192.168.18.238:3001/api/v1";
+const char* API_BASE_URL = "https://ecoincubadora-backend.onrender.com/api/v1";
 
 constexpr uint8_t DHT_PIN = 26;
 constexpr uint8_t SOIL_SENSOR_PIN = 35;
