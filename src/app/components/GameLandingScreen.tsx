@@ -122,7 +122,12 @@ export function GameLandingScreen({ darkMode = false, isDesktop = false }: GameL
                   {/* Pixel Art Buttons - Side by Side Horizontal */}
                   <div className="flex items-center gap-3">
                     {/* Orange Play Button */}
-                    <button className="flex-1 relative overflow-hidden group">
+                    <a
+                      href="https://as-aventuras-de-finn.itch.io/a-incubadora-as-aventuras-de-finn"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex-1 relative overflow-hidden group"
+                    >
                       <div className="absolute inset-0 bg-gradient-to-br from-orange-500 to-orange-600 rounded-lg" />
                       <div className="absolute inset-0 bg-black/20 group-hover:bg-black/0 transition-all duration-200" />
                       <div className="relative px-6 py-3 flex items-center justify-center gap-2">
@@ -132,7 +137,7 @@ export function GameLandingScreen({ darkMode = false, isDesktop = false }: GameL
                         </span>
                       </div>
                       <div className="absolute bottom-0 left-0 right-0 h-1 bg-orange-700" />
-                    </button>
+                    </a>
 
                     {/* Purple Info Button */}
                     <button className="flex-1 relative overflow-hidden group">

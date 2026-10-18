@@ -3,8 +3,8 @@
 #include <WiFiClientSecure.h>
 #include <ArduinoJson.h>
 #include <DHT.h>
-#include <Preferences.h>
 #include <math.h>
+#include <time.h>
 #include "secrets.h"
 
 const char* API_BASE_URL = "https://ecoincubadora-backend.onrender.com/api/v1";
@@ -29,7 +29,6 @@ constexpr unsigned long MOTOR_COMMAND_POLL_INTERVAL_MS = 1000;
 constexpr unsigned long BUTTON_DEBOUNCE_MS = 50;
 
 DHT dht(DHT_PIN, DHT_TYPE);
-Preferences preferences;
 WiFiClientSecure secureClient;
 StaticJsonDocument<4096> motorCommandResponse;
 
@@ -45,6 +44,9 @@ bool wifiWasConnected = false;
 bool lampIsOn = false;
 bool lampNeedsSync = false;
 bool motorRunning = false;
+bool motorQueueInitialized = false;
+bool timeSyncStarted = false;
+bool clockWasSynchronized = false;
 uint32_t motorStopAt = 0;
 uint32_t currentMotorCommandId = 0;
 uint32_t lastProcessedMotorCommandId = 0;
@@ -75,14 +77,22 @@ bool beginRequest(HTTPClient& http, const String& path) {
   http.setTimeout(10000);
   const String url = apiUrl(path);
   if (url.startsWith("https://")) {
-    if (strlen(RENDER_ROOT_CA_CERT) == 0) {
-      Serial.println("HTTPS bloqueado: configure a CA raiz do certificado Render em secrets.h.");
-      return false;
-    }
-    secureClient.setCACert(RENDER_ROOT_CA_CERT);
+    secureClient.setInsecure();
     return http.begin(secureClient, url);
   }
   return http.begin(url);
+}
+
+void logHttpFailure(const char* operation, HTTPClient& http, int status) {
+  if (status >= 0) return;
+
+  char tlsError[128] = {};
+  secureClient.lastError(tlsError, sizeof(tlsError));
+  Serial.printf("%s falhou: HTTP %d (%s); TLS: %s\n",
+                operation,
+                status,
+                http.errorToString(status).c_str(),
+                tlsError);
 }
 
 void applyLamp(bool on) {
@@ -100,6 +110,30 @@ float readSoilHumidityPercent(int rawValue) {
   return constrain(percentage, 0.0f, 100.0f);
 }
 
+bool ensureSystemTime(unsigned long now) {
+  const time_t currentTime = time(nullptr);
+  if (currentTime > 1700000000) {
+    if (!clockWasSynchronized) {
+      Serial.printf("Relogio sincronizado via NTP: %lu\n",
+                    static_cast<unsigned long>(currentTime));
+      clockWasSynchronized = true;
+    }
+    return true;
+  }
+
+  if (!timeSyncStarted) {
+    configTime(0, 0, "pool.ntp.org", "time.cloudflare.com", "time.google.com");
+    timeSyncStarted = true;
+    Serial.println("Aguardando sincronizacao do relogio por NTP antes do HTTPS...");
+  }
+
+  if (now - lastWifiDiagnostic >= 5000) {
+    lastWifiDiagnostic = now;
+    Serial.println("Ainda aguardando hora NTP para validar o certificado HTTPS.");
+  }
+  return false;
+}
+
 bool sendLampCommand(bool on) {
   if (WiFi.status() != WL_CONNECTED) return false;
 
@@ -113,6 +147,7 @@ bool sendLampCommand(bool on) {
 
   http.addHeader("Content-Type", "application/json");
   const int status = http.sendRequest("PATCH", body);
+  logHttpFailure("Comando da lampada", http, status);
   http.end();
 
   Serial.printf("Comando local da lampada: HTTP %d\n", status);
@@ -170,6 +205,7 @@ void pollLampState() {
       Serial.printf("JSON invalido ao consultar lampada: %s\n", error.c_str());
     }
   } else {
+    logHttpFailure("Consulta da lampada", http, status);
     Serial.printf("Consulta do estado da lampada: HTTP %d\n", status);
   }
 
@@ -185,6 +221,7 @@ bool acknowledgeMotorCommand(uint32_t commandId) {
 
   http.addHeader("Content-Type", "application/json");
   const int status = http.sendRequest("PATCH", "{}");
+  logHttpFailure("Confirmacao do comando do motor", http, status);
   http.end();
   Serial.printf("Confirmacao do comando do motor %lu: HTTP %d\n",
                 static_cast<unsigned long>(commandId), status);
@@ -216,6 +253,7 @@ void pollMotorCommands() {
 
   const int status = http.GET();
   if (status != HTTP_CODE_OK) {
+    logHttpFailure("Consulta dos comandos do motor", http, status);
     Serial.printf("Consulta dos comandos do motor: HTTP %d\n", status);
     http.end();
     return;
@@ -230,6 +268,30 @@ void pollMotorCommands() {
   }
 
   JsonArray commands = motorCommandResponse["commands"].as<JsonArray>();
+
+  if (!motorQueueInitialized) {
+    uint32_t highestExistingCommandId = 0;
+    uint8_t discardedCommands = 0;
+
+    for (JsonObject command : commands) {
+      const uint32_t commandId = command["id"] | 0;
+      const char* actuator = command["actuator"] | "";
+      const char* action = command["action"] | "";
+      if (commandId == 0 || strcmp(actuator, "motor") != 0 || strcmp(action, "rotate") != 0) {
+        continue;
+      }
+
+      if (commandId > highestExistingCommandId) highestExistingCommandId = commandId;
+      if (acknowledgeMotorCommand(commandId)) discardedCommands++;
+    }
+
+    lastProcessedMotorCommandId = highestExistingCommandId;
+    motorQueueInitialized = true;
+    Serial.printf("Fila inicial pronta; %u comandos antigos descartados. Clique em Ativar Rolagem para testar.\n",
+                  discardedCommands);
+    return;
+  }
+
   for (JsonObject command : commands) {
     const uint32_t commandId = command["id"] | 0;
     const char* actuator = command["actuator"] | "";
@@ -246,9 +308,7 @@ void pollMotorCommands() {
     uint32_t durationMs = command["durationMs"] | 3000;
     durationMs = constrain(durationMs, 100U, 10000U);
 
-    // Persistir antes de energizar evita repetir uma rolagem após reinicialização.
     lastProcessedMotorCommandId = commandId;
-    preferences.putUInt("lastMotorCmd", lastProcessedMotorCommandId);
     currentMotorCommandId = commandId;
     motorStopAt = millis() + durationMs;
     motorRunning = true;
@@ -287,6 +347,7 @@ void postSensorReadings() {
 
   http.addHeader("Content-Type", "application/json");
   const int status = http.POST(body);
+  logHttpFailure("Envio das leituras", http, status);
 
   Serial.printf("Leitura ADC solo: %d, umidade calculada: %.1f%%, HTTP: %d\n",
                 soilRaw, soilHumidity, status);
@@ -306,9 +367,6 @@ void setup() {
 
   analogReadResolution(12);
   dht.begin();
-  preferences.begin("ecoincubadora", false);
-  lastProcessedMotorCommandId = preferences.getUInt("lastMotorCmd", 0);
-
   WiFi.mode(WIFI_STA);
   WiFi.setAutoReconnect(true);
   WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
@@ -340,6 +398,8 @@ void loop() {
     }
     return;
   }
+
+  if (!ensureSystemTime(now)) return;
 
   if (!motorRunning) {
     syncLocalLampCommand(now);

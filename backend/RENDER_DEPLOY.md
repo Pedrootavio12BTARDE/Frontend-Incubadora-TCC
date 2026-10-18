@@ -27,8 +27,8 @@ Não inclua `/api/v1` nem uma barra final. Depois, faça novo build/deploy do fr
 ## Preparar o ESP32
 
 1. Copie `firmware/ecoincubadora/secrets.h.example` para `firmware/ecoincubadora/secrets.h` e preencha localmente o Wi-Fi 2,4 GHz.
-2. Troque `API_BASE_URL` no sketch pelo domínio HTTPS do backend, terminado em `/api/v1`.
-3. Copie a CA raiz correspondente ao certificado efetivamente apresentado pelo domínio para `RENDER_ROOT_CA_CERT` em `secrets.h`, mantendo o formato PEM/raw string. Os domínios Render podem usar Let's Encrypt ou Google Trust Services. Sem uma CA configurada, o sketch bloqueia a chamada HTTPS. **Não use `setInsecure()` em produção**, pois isso permitiria interceptar comandos da lâmpada e do motor.
+2. O sketch usa o domínio HTTPS do backend Render.
+3. Para esta demonstração, o ESP32 aceita o certificado HTTPS sem validar a CA. Isso facilita a apresentação, mas deixa a conexão vulnerável a interceptação. Não use essa configuração com uma incubadora em operação real.
 4. Grave o sketch e confirme no Monitor Serial HTTP `200` nas leituras e na consulta da fila.
 
 O sketch mantém o endpoint local durante o desenvolvimento. O arquivo `secrets.h` é ignorado pelo Git. As leituras e usuários do SQLite local não são copiados automaticamente para o PostgreSQL do Render; o banco de produção começa vazio.
