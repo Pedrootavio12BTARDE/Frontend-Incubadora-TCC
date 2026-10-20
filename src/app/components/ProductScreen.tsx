@@ -1,4 +1,4 @@
-import { Package, Cpu, Wrench, Zap, Image as ImageIcon } from "lucide-react";
+import { Package, Cpu, Wrench, Zap } from "lucide-react";
 
 interface ProductScreenProps {
   onNavigate?: () => void;
@@ -15,9 +15,12 @@ export function ProductScreen({ onNavigate, darkMode = false, isDesktop = false 
       items: [
         { name: "ESP32 DevKit V1", price: 45.00 },
         { name: "Sensor DHT22", price: 28.00 },
-        { name: "Módulo Relé", price: 18.00 },
-        { name: "Servo Motor", price: 15.00 },
-        { name: "Regulador LM2596", price: 12.00 },
+        { name: "2x Módulo Relé", price: 36.00 },
+        { name: "Motor DC", price: 20.00 },
+        { name: "Conversor Step-Down LM2596", price: 12.00 },
+        { name: "Capacitor", price: 3.00 },
+        { name: "Conversor de energia", price: 30.00 },
+        { name: "2x Diodo", price: 5.00 },
       ],
     },
     {
@@ -25,10 +28,9 @@ export function ProductScreen({ onNavigate, darkMode = false, isDesktop = false 
       icon: Wrench,
       color: "#6EDDC4",
       items: [
-        { name: "Placa de Fenolite", price: 12.00 },
         { name: "Kit Jumpers Rígidos", price: 15.00 },
-        { name: "Barra de Pinos", price: 5.00 },
         { name: "Estanho", price: 10.00 },
+        { name: "Estrutura de madeira e montagem", price: 240.00 },
       ],
     },
     {
@@ -205,22 +207,16 @@ export function ProductScreen({ onNavigate, darkMode = false, isDesktop = false 
               🏆 Protótipo Finalizado
             </h3>
 
-            {/* Placeholder de Imagem */}
             <div className={`relative rounded-2xl overflow-hidden transition-all duration-300 ${
               darkMode
                 ? 'bg-gradient-to-br from-white/20 to-white/10 border border-white/30'
                 : 'bg-gradient-to-br from-white/40 to-white/20 border border-white/50'
-            }`} style={{ aspectRatio: '16/10' }}>
-              <div className="absolute inset-0 flex items-center justify-center">
-                <div className="text-center">
-                  <ImageIcon className={`w-16 h-16 mx-auto mb-2 transition-colors duration-300 ${darkMode ? 'text-white/40' : 'text-[#001F3F]/40'}`} strokeWidth={1.5} />
-                  <p className={`text-xs transition-colors duration-300 ${darkMode ? 'text-white/50' : 'text-[#001F3F]/50'}`} style={{ fontFamily: 'Quicksand, sans-serif', fontWeight: 500 }}>
-                    Imagem do Protótipo
-                    <br />
-                    EcoIncubadora IoT
-                  </p>
-                </div>
-              </div>
+            }`}>
+              <img
+                src="/images/produto-final.png"
+                alt="Produto final EcoIncubadora Dual-Compartimento"
+                className="w-full h-auto object-cover"
+              />
             </div>
 
             <div className="mt-4 text-center">
