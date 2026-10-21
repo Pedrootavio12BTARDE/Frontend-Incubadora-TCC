@@ -10,12 +10,16 @@ interface IncubationCardProps {
   lampOn?: boolean;
   onToggleLamp?: () => void;
   darkMode?: boolean;
+  canControl?: boolean;
+  onRequireAuth?: () => void;
 }
 
 export function IncubationCard({ 
   lampOn: defaultLampOn = false, 
   onToggleLamp,
-  darkMode = false 
+  darkMode = false,
+  canControl = false,
+  onRequireAuth,
 }: IncubationCardProps) {
   const [temperature, setTemperature] = useState<number | null>(null);
   const [humidity, setHumidity] = useState<number | null>(null);
@@ -64,6 +68,10 @@ export function IncubationCard({
 
   // Handle lamp toggle - calls backend API
   const handleToggleLamp = async () => {
+    if (!canControl) {
+      onRequireAuth?.();
+      return;
+    }
     if (isLoading) return;
     
     setIsLoading(true);
@@ -144,6 +152,7 @@ export function IncubationCard({
           <button
             onClick={handleToggleLamp}
             disabled={isLoading}
+            aria-label={canControl ? "Alternar lâmpada de aquecimento" : "Entre para controlar a lâmpada"}
             className={`relative w-12 h-6 rounded-full transition-all duration-300 ${
               lampOn ? 'bg-gradient-to-r from-[#98FFD9] to-[#6EDDC4]' : 'bg-gray-300'
             } ${isLoading ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
@@ -151,6 +160,15 @@ export function IncubationCard({
             <div className={`absolute top-0.5 w-5 h-5 bg-white rounded-full shadow-md transition-all duration-300 ${lampOn ? 'left-[26px]' : 'left-0.5'}`} />
           </button>
         </div>
+        {!canControl && (
+          <button
+            type="button"
+            onClick={onRequireAuth}
+            className={`mt-2 text-[10px] underline ${darkMode ? 'text-[#98FFD9]' : 'text-[#001F3F]'}`}
+          >
+            Faça login para controlar a lâmpada
+          </button>
+        )}
       </div>
 
       <div className="grid grid-cols-2 gap-3">

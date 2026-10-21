@@ -5,13 +5,24 @@ import { rotateMotor } from "../../services/api";
 interface ActionButtonsProps {
   onNavigateToReports: () => void;
   darkMode?: boolean;
+  canControl?: boolean;
+  onRequireAuth?: () => void;
 }
 
-export function ActionButtons({ onNavigateToReports, darkMode = false }: ActionButtonsProps) {
+export function ActionButtons({
+  onNavigateToReports,
+  darkMode = false,
+  canControl = false,
+  onRequireAuth,
+}: ActionButtonsProps) {
   const [isRotatingRequest, setIsRotatingRequest] = useState(false);
   const [rotationMessage, setRotationMessage] = useState("");
 
   const handleRotate = async () => {
+    if (!canControl) {
+      onRequireAuth?.();
+      return;
+    }
     if (isRotatingRequest) return;
 
     setIsRotatingRequest(true);

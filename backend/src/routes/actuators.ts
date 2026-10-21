@@ -25,6 +25,7 @@
 
 import { Router } from 'express';
 import prisma from '../lib/prisma';
+import { requireAuth } from '../middleware/requireAuth';
 
 const router = Router();
 
@@ -137,7 +138,7 @@ router.patch('/commands/:id/ack', async (req, res) => {
  * - Emite Socket.io "actuator:update" → { actuator: 'lamp', action: 'on'|'off' }
  * - ESP32 pode ouvir e ativar/desativar GPIO da lâmpada
  */
-router.patch('/lamp', async (req, res) => {
+router.patch('/lamp', requireAuth, async (req, res) => {
   try {
     const { on } = req.body;
     if (typeof on !== 'boolean') {
@@ -162,7 +163,7 @@ router.patch('/lamp', async (req, res) => {
   }
 });
 
-router.post('/motor/rotate', async (req, res) => {
+router.post('/motor/rotate', requireAuth, async (req, res) => {
   try {
     const durationMs = req.body?.durationMs === undefined ? 1000 : Number(req.body.durationMs);
     if (!Number.isInteger(durationMs) || durationMs < 100 || durationMs > 10000) {
@@ -217,7 +218,7 @@ router.post('/motor/rotate', async (req, res) => {
  * - Emite Socket.io "actuator:update" → { actuator: 'fan', action: 'on'|'off'|'auto' }
  * - ESP32 pode ajustar velocidade ou modo do ventilador
  */
-router.patch('/fan', async (req, res) => {
+router.patch('/fan', requireAuth, async (req, res) => {
   try {
     const { state } = req.body;  // expected 'on'|'off'|'auto' etc
     

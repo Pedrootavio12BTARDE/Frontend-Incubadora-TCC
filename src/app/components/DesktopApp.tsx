@@ -11,9 +11,10 @@ import { AboutScreen } from "./AboutScreen";
 import { ReferencesScreen } from "./ReferencesScreen";
 import { GameLandingScreen } from "./GameLandingScreen";
 import { LoginScreen } from "./LoginScreen";
+import { clearAuthToken, getAuthToken } from "../../services/api";
 import {
   Home, Gamepad2, Package, BarChart3, Users, BookOpen, Leaf,
-  Wifi, LogIn, Moon, Sun, Menu, X, ChevronRight,
+  Wifi, LogIn, LogOut, Moon, Sun, Menu, X, ChevronRight,
 } from "lucide-react";
 import logoImg from "../../imports/logo_cerebro.png";
 
@@ -39,6 +40,7 @@ export function DesktopApp() {
   const [darkMode, setDarkMode]     = useState(true);
   const [currentScreen, setCurrentScreen] = useState<Screen>("dashboard");
   const [sidebarOpen, setSidebarOpen]     = useState(false);
+  const [isAuthenticated, setIsAuthenticated] = useState(() => Boolean(getAuthToken()));
 
   // Sincroniza a classe .dark com o elemento HTML raiz
   useEffect(() => {
@@ -51,6 +53,13 @@ export function DesktopApp() {
 
   // Fechar gaveta de navegação
   const navigate = (screen: Screen) => {
+    if (screen === "login" && isAuthenticated) {
+      clearAuthToken();
+      setIsAuthenticated(false);
+      setCurrentScreen("dashboard");
+      setSidebarOpen(false);
+      return;
+    }
     setCurrentScreen(screen);
     setSidebarOpen(false);
   };
@@ -157,6 +166,8 @@ export function DesktopApp() {
 
                 <nav className="flex-1 space-y-1">
                   {navItems.map(({ id, label, Icon }) => {
+                    const displayedLabel = id === "login" && isAuthenticated ? "Sair" : label;
+                    const DisplayIcon = id === "login" && isAuthenticated ? LogOut : Icon;
                     const active = currentScreen === id;
                     return (
                       <button
@@ -174,10 +185,10 @@ export function DesktopApp() {
                         `}
                       >
                         <div className={`p-2 rounded-xl shrink-0 transition-colors ${active ? "bg-white/25" : dm ? "bg-white/10" : "bg-[#001F3F]/5"}`}>
-                          <Icon className="w-4 h-4" strokeWidth={2.5} />
+                          <DisplayIcon className="w-4 h-4" strokeWidth={2.5} />
                         </div>
                         <span className="text-sm font-bold flex-1" style={{ fontFamily: "Quicksand, sans-serif" }}>
-                          {label}
+                          {displayedLabel}
                         </span>
                         {active && <ChevronRight className="w-3.5 h-3.5 opacity-60" strokeWidth={2.5} />}
                       </button>
@@ -228,7 +239,10 @@ export function DesktopApp() {
               isDesktop={true}
               onBack={() => navigate("dashboard")}
               onToggleDarkMode={() => setDarkMode(d => !d)}
-              onLoginSuccess={() => navigate("dashboard")}
+              onLoginSuccess={() => {
+                setIsAuthenticated(true);
+                navigate("dashboard");
+              }}
             />
 
           ) : currentScreen === "instructions" ? (
@@ -308,6 +322,8 @@ export function DesktopApp() {
                   lampOn={lampOn}
                   onToggleLamp={() => setLampOn(l => !l)}
                   darkMode={dm}
+                  canControl={isAuthenticated}
+                  onRequireAuth={() => navigate("login")}
                 />
                 <div className="md:col-span-2 xl:col-span-1">
                   <SustainabilityCard level={75} darkMode={dm} />
@@ -317,6 +333,8 @@ export function DesktopApp() {
               <ActionButtons
                 onNavigateToReports={() => navigate("reports")}
                 darkMode={dm}
+                canControl={isAuthenticated}
+                onRequireAuth={() => navigate("login")}
               />
             </div>
           )}
