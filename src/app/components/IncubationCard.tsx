@@ -2,6 +2,9 @@ import { Thermometer, Droplet, Lightbulb, Wifi, WifiOff } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useSocket } from "../../hooks/useSocket";
 import { setLamp, getActuatorStatus, getLatestSensorReading, type SensorReading } from "../../services/api";
+import { AlertOverlay } from "./AlertOverlay";
+
+const OVERHEAT_THRESHOLD_C = 38;
 
 interface IncubationCardProps {
   lampOn?: boolean;
@@ -18,6 +21,8 @@ export function IncubationCard({
   const [humidity, setHumidity] = useState<number | null>(null);
   const [lampOn, setLampOn] = useState(defaultLampOn);
   const [isLoading, setIsLoading] = useState(false);
+  const [alertDismissed, setAlertDismissed] = useState(false);
+  const isOverheating = temperature !== null && temperature > OVERHEAT_THRESHOLD_C;
 
   // Socket.io hook - listens to sensor:update events
   const { data: sensorUpdate, isConnected } = useSocket<SensorReading>('sensor:update');
@@ -52,6 +57,10 @@ export function IncubationCard({
       setHumidity(sensorUpdate.humidity);
     }
   }, [sensorUpdate]);
+
+  useEffect(() => {
+    if (!isOverheating) setAlertDismissed(false);
+  }, [isOverheating]);
 
   // Handle lamp toggle - calls backend API
   const handleToggleLamp = async () => {
@@ -89,6 +98,11 @@ export function IncubationCard({
 
   return (
     <div>
+      <AlertOverlay
+        show={isOverheating && !alertDismissed}
+        temperature={temperature ?? 0}
+        onClose={() => setAlertDismissed(true)}
+      />
       <div className="flex items-center justify-between mb-2">
         <h2 className={`text-base transition-colors duration-300 ${darkMode ? 'text-white' : 'text-[#001F3F]'}`} style={{ fontFamily: 'Quicksand, sans-serif', fontWeight: 600 }}>
           Incubação
@@ -141,7 +155,9 @@ export function IncubationCard({
 
       <div className="grid grid-cols-2 gap-3">
         {/* Temperatura */}
-        <div className="relative bg-gradient-to-br from-[#FFE5CC]/40 via-white/50 to-[#FFB499]/30 backdrop-blur-xl rounded-[1.25rem] shadow-[0_8px_32px_rgba(255,100,100,0.15)] border border-white/60 p-4 overflow-hidden">
+        <div className={`relative bg-gradient-to-br from-[#FFE5CC]/40 via-white/50 to-[#FFB499]/30 backdrop-blur-xl rounded-[1.25rem] shadow-[0_8px_32px_rgba(255,100,100,0.15)] border p-4 overflow-hidden ${
+          isOverheating ? 'border-red-500 ring-2 ring-red-500/40' : 'border-white/60'
+        }`}>
           {/* Efeito de brilho */}
           <div className="absolute top-0 right-0 w-16 h-16 bg-gradient-to-br from-[#FF9999]/20 to-transparent rounded-full blur-2xl" />
 
@@ -159,8 +175,10 @@ export function IncubationCard({
             >
               {temperature === null ? "--.-" : temperature.toFixed(1)}°C
             </div>
-            <div className={`text-[10px] transition-colors duration-300 ${darkMode ? 'text-white/70' : 'text-[#001F3F] opacity-60'}`} style={{ fontFamily: 'Quicksand, sans-serif', fontWeight: 500 }}>
-              Temperatura
+            <div className={`text-[10px] transition-colors duration-300 ${
+              isOverheating ? 'text-red-600' : darkMode ? 'text-white/70' : 'text-[#001F3F] opacity-60'
+            }`} style={{ fontFamily: 'Quicksand, sans-serif', fontWeight: 700 }}>
+              {isOverheating ? 'ALERTA: acima de 38°C' : 'Temperatura'}
             </div>
           </div>
         </div>

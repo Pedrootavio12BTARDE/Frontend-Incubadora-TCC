@@ -2,10 +2,11 @@ import { AlertTriangle, X } from "lucide-react";
 
 interface AlertOverlayProps {
   show: boolean;
+  temperature: number;
   onClose: () => void;
 }
 
-export function AlertOverlay({ show, onClose }: AlertOverlayProps) {
+export function AlertOverlay({ show, temperature, onClose }: AlertOverlayProps) {
   if (!show) return null;
 
   return (
@@ -40,7 +41,7 @@ export function AlertOverlay({ show, onClose }: AlertOverlayProps) {
             className="text-white text-xl mb-2"
             style={{ fontFamily: 'Quicksand, sans-serif', fontWeight: 700 }}
           >
-            ALERTA
+            ALERTA DE TEMPERATURA
           </h3>
 
           {/* Message */}
@@ -48,7 +49,7 @@ export function AlertOverlay({ show, onClose }: AlertOverlayProps) {
             className="text-white/90 text-base mb-4"
             style={{ fontFamily: 'Quicksand, sans-serif', fontWeight: 500 }}
           >
-            Temperatura Elevada (39.2°C)
+            Temperatura elevada: {temperature.toFixed(1)}°C (limite: 38°C)
           </p>
 
           {/* Action */}
@@ -57,7 +58,7 @@ export function AlertOverlay({ show, onClose }: AlertOverlayProps) {
               className="text-white text-sm"
               style={{ fontFamily: 'Quicksand, sans-serif', fontWeight: 600 }}
             >
-              🔄 Ativando Resfriamento
+              A lâmpada não será desligada automaticamente
             </span>
           </div>
         </div>

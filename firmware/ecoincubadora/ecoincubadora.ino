@@ -9,11 +9,10 @@
 
 const char* API_BASE_URL = "https://ecoincubadora-backend.onrender.com/api/v1";
 
-constexpr uint8_t DHT_PIN = 26;
+constexpr uint8_t DHT_PIN = 14;
 constexpr uint8_t SOIL_SENSOR_PIN = 35;
-constexpr uint8_t LAMP_RELAY_PIN = 14;
-constexpr uint8_t MOTOR_RELAY_PIN = 23;
-constexpr uint8_t BUTTON_PIN = 32;
+constexpr uint8_t LAMP_RELAY_PIN = 26;
+constexpr uint8_t MOTOR_RELAY_PIN = 32;
 constexpr uint8_t DHT_TYPE = DHT11;
 
 // Calibre lendo o ADC com o sensor seco e depois na umidade de referencia.
@@ -26,7 +25,6 @@ constexpr bool MOTOR_RELAY_ACTIVE_LOW = true;
 constexpr unsigned long SENSOR_INTERVAL_MS = 5000;
 constexpr unsigned long LAMP_POLL_INTERVAL_MS = 2000;
 constexpr unsigned long MOTOR_COMMAND_POLL_INTERVAL_MS = 1000;
-constexpr unsigned long BUTTON_DEBOUNCE_MS = 50;
 
 DHT dht(DHT_PIN, DHT_TYPE);
 WiFiClientSecure secureClient;
@@ -37,7 +35,6 @@ unsigned long lastLampPoll = 0;
 unsigned long lastLampSync = 0;
 unsigned long lastWifiDiagnostic = 0;
 unsigned long lastMotorCommandPoll = 0;
-unsigned long lastButtonChange = 0;
 
 bool wifiStarted = false;
 bool wifiWasConnected = false;
@@ -50,8 +47,6 @@ bool clockWasSynchronized = false;
 uint32_t motorStopAt = 0;
 uint32_t currentMotorCommandId = 0;
 uint32_t lastProcessedMotorCommandId = 0;
-int lastButtonReading = HIGH;
-int stableButtonState = HIGH;
 
 int relayOnLevel() {
   return RELAY_ACTIVE_LOW ? LOW : HIGH;
@@ -158,28 +153,6 @@ void syncLocalLampCommand(unsigned long now) {
   if (!lampNeedsSync || now - lastLampSync < 1000) return;
   lastLampSync = now;
   lampNeedsSync = !sendLampCommand(lampIsOn);
-}
-
-void handlePhysicalButton(unsigned long now) {
-  const int reading = digitalRead(BUTTON_PIN);
-
-  if (reading != lastButtonReading) {
-    lastButtonChange = now;
-    lastButtonReading = reading;
-  }
-
-  if (now - lastButtonChange < BUTTON_DEBOUNCE_MS ||
-      reading == stableButtonState) {
-    return;
-  }
-
-  stableButtonState = reading;
-  if (stableButtonState == LOW) {
-    applyLamp(!lampIsOn);
-    lampNeedsSync = true;
-    lastLampSync = 0;
-    Serial.printf("Botao fisico: lampada %s\n", lampIsOn ? "ligada" : "desligada");
-  }
 }
 
 void pollLampState() {
@@ -362,9 +335,6 @@ void setup() {
   pinMode(MOTOR_RELAY_PIN, OUTPUT);
   digitalWrite(MOTOR_RELAY_PIN, motorRelayOffLevel());
 
-  // Ligue o botao entre GPIO32 e GND.
-  pinMode(BUTTON_PIN, INPUT_PULLUP);
-
   analogReadResolution(12);
   dht.begin();
   WiFi.mode(WIFI_STA);
@@ -379,7 +349,6 @@ void setup() {
 void loop() {
   const unsigned long now = millis();
 
-  handlePhysicalButton(now);
   serviceMotorTimer();
 
   const bool wifiConnected = WiFi.status() == WL_CONNECTED;
