@@ -47,7 +47,7 @@ export function LoginScreen({ darkMode = false, isDesktop = false, onBack, onTog
   };
 
   return (
-    <div className="h-full w-full flex flex-col lg:flex-row overflow-hidden overflow-y-auto relative">
+    <div className="min-h-full w-full flex flex-col lg:flex-row relative overflow-x-hidden">
       {/* LEFT COLUMN - Login Form */}
       <div className="w-full lg:w-1/2 bg-gradient-to-br from-[#000C1A] to-[#001F3F] flex flex-col px-4 pt-4 pb-10 lg:px-16 lg:pt-8 lg:pb-10 lg:justify-center">
         {/* Top bar: Home + Dark mode icons */}
@@ -73,7 +73,7 @@ export function LoginScreen({ darkMode = false, isDesktop = false, onBack, onTog
           )}
         </div>
 
-        <div className="w-full max-w-md mx-auto lg:mx-0 px-0 overflow-hidden">
+        <div className="w-full max-w-md mx-auto lg:mx-0 px-0">
           {/* Logo Section */}
           <div className="mb-6 lg:mb-8 flex items-center gap-3 lg:gap-4">
             <img
@@ -111,7 +111,7 @@ export function LoginScreen({ darkMode = false, isDesktop = false, onBack, onTog
               }`}
               style={{ fontFamily: 'Quicksand, sans-serif', fontWeight: 900 }}
             >
-              LOGIN
+              ENTRAR
             </button>
             <button
               onClick={() => { setIsSignUp(true); setErrorMessage(""); }}
@@ -122,7 +122,7 @@ export function LoginScreen({ darkMode = false, isDesktop = false, onBack, onTog
               }`}
               style={{ fontFamily: 'Quicksand, sans-serif', fontWeight: 900 }}
             >
-              SIGN UP
+              CADASTRAR
             </button>
           </div>
 
@@ -213,10 +213,10 @@ export function LoginScreen({ darkMode = false, isDesktop = false, onBack, onTog
             <button
               type="submit"
               disabled={isSubmitting}
-              className="w-full py-3 lg:py-4 rounded-lg text-[#001F3F] text-xs lg:text-base uppercase tracking-wide hover:shadow-xl transition-all duration-300 mt-6 lg:mt-8 bg-gradient-to-r from-[#98FFD9] to-[#6EDDC4] hover:from-[#6EDDC4] hover:to-[#98FFD9] shadow-[0_8px_24px_rgba(152,255,217,0.4)] disabled:opacity-60"
+              className="w-full py-3 lg:py-4 rounded-lg text-[#001F3F] text-xs lg:text-base uppercase tracking-wide hover:shadow-xl transition-all duration-300 mt-4 lg:mt-8 bg-gradient-to-r from-[#98FFD9] to-[#6EDDC4] hover:from-[#6EDDC4] hover:to-[#98FFD9] shadow-[0_8px_24px_rgba(152,255,217,0.4)] disabled:opacity-60"
               style={{ fontFamily: 'Quicksand, sans-serif', fontWeight: 900 }}
             >
-              {isSubmitting ? 'AGUARDE...' : isSignUp ? 'CREATE ACCOUNT' : 'LOGIN'}
+              {isSubmitting ? 'AGUARDE...' : isSignUp ? 'CONFIRMAR CADASTRO' : 'ENTRAR'}
             </button>
           </form>
 
