@@ -47,8 +47,10 @@ model ActuatorCommand {
 }
 
 model Production {
-  id        Int      @id @default(autoincrement())
-  eggs      Int      @default(0)
-  lastColor String?
-  updatedAt DateTime @updatedAt
+  id         Int      @id @default(autoincrement())
+  eggs       Int      @default(0)
+  whiteEggs  Int      @default(0)
+  brownEggs  Int      @default(0)
+  lastColor  String?
+  updatedAt  DateTime @updatedAt
 }

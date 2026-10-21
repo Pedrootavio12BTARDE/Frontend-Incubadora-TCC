@@ -28,7 +28,19 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 Object.defineProperty(exports, "__esModule", { value: true });
 const express_1 = require("express");
 const prisma_1 = __importDefault(require("../lib/prisma"));
+const requireAuth_1 = require("../middleware/requireAuth");
 const router = (0, express_1.Router)();
+function toProductionResponse(production) {
+    return {
+        id: production.id,
+        eggs: production.eggs,
+        eggsCount: production.eggs,
+        whiteEggs: production.whiteEggs,
+        brownEggs: production.brownEggs,
+        lastColor: production.lastColor,
+        updatedAt: production.updatedAt,
+    };
+}
 /**
  * GET /api/v1/production
  *
@@ -54,7 +66,7 @@ router.get('/', async (req, res) => {
         if (!prod) {
             prod = await prisma_1.default.production.create({ data: {} });
         }
-        res.json(prod);
+        res.json(toProductionResponse(prod));
     }
     catch (err) {
         res.status(500).json({ error: 'failed to read production' });
@@ -95,27 +107,34 @@ router.get('/', async (req, res) => {
  * - Emite Socket.io "production:update" com dados atualizados
  * - Frontend (ProductionCard) recebe e atualiza dashboard em tempo real
  */
-router.post('/increment', async (req, res) => {
+router.post('/increment', requireAuth_1.requireAuth, async (req, res) => {
     try {
-        // Extrai parâmetros
-        const { amount = 1, color } = req.body;
-        // Busca registro atual
+        const amount = req.body?.amount === undefined ? 1 : Number(req.body.amount);
+        const color = req.body?.color;
+        if (!Number.isInteger(amount) || amount < 1 || amount > 1000) {
+            return res.status(400).json({ error: 'amount must be an integer between 1 and 1000' });
+        }
+        if (color !== 'Branco' && color !== 'Marrom') {
+            return res.status(400).json({ error: 'color must be Branco or Marrom' });
+        }
         let prod = await prisma_1.default.production.findFirst();
         if (!prod)
             prod = await prisma_1.default.production.create({ data: {} });
-        // Atualiza: incrementa ovos e opcionalmente atualiza cor
         const updated = await prisma_1.default.production.update({
             where: { id: prod.id },
             data: {
-                eggs: prod.eggs + Number(amount),
-                lastColor: color || prod.lastColor
+                eggs: { increment: amount },
+                ...(color === 'Branco'
+                    ? { whiteEggs: { increment: amount } }
+                    : { brownEggs: { increment: amount } }),
+                lastColor: color,
             }
         });
-        // Emite evento para frontend (tempo real)
+        const response = toProductionResponse(updated);
         const io = req.app.get('io');
         if (io)
-            io.emit('production:update', updated);
-        res.json(updated);
+            io.emit('production:update', response);
+        res.json({ success: true, newCount: updated.eggs, color, ...response });
     }
     catch (err) {
         res.status(500).json({ error: 'failed to increment production' });

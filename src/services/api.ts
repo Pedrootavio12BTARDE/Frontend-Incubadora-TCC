@@ -138,17 +138,119 @@ export async function rotateMotor(durationMs: number = 3000): Promise<{
 // ============================================================================
 
 export interface ProductionData {
-  id?: string;
+  id?: number;
+  eggs?: number;
   eggsCount: number;
-  lastColor?: string;
+  whiteEggs: number;
+  brownEggs: number;
+  lastColor: string | null;
   updatedAt?: string;
+}
+
+const LOCAL_STORAGE_PROD_KEY = 'ecoincubadora_production';
+
+/**
+ * Retorna dados de produção salvos localmente no navegador (fallback offline)
+ */
+export function getLocalProduction(): ProductionData {
+  try {
+    const saved = localStorage.getItem(LOCAL_STORAGE_PROD_KEY);
+    if (saved) {
+      const parsed = JSON.parse(saved);
+      if (typeof parsed.whiteEggs === 'number' && typeof parsed.brownEggs === 'number') {
+        const white = Math.max(0, parsed.whiteEggs);
+        const brown = Math.max(0, parsed.brownEggs);
+        return {
+          eggsCount: white + brown,
+          whiteEggs: white,
+          brownEggs: brown,
+          lastColor: parsed.lastColor ?? (brown > 0 ? 'Marrom' : 'Branco'),
+          updatedAt: parsed.updatedAt,
+        };
+      }
+    }
+  } catch (e) {
+    // ignore
+  }
+  return {
+    eggsCount: 245,
+    whiteEggs: 140,
+    brownEggs: 105,
+    lastColor: 'Marrom',
+  };
+}
+
+/**
+ * Salva e sincroniza dados de produção localmente e notifica ouvintes
+ */
+export function saveLocalProduction(data: Partial<ProductionData>): ProductionData {
+  const current = getLocalProduction();
+  const white = typeof data.whiteEggs === 'number' ? Math.max(0, data.whiteEggs) : current.whiteEggs;
+  const brown = typeof data.brownEggs === 'number' ? Math.max(0, data.brownEggs) : current.brownEggs;
+  const total = white + brown;
+  const lastColor = data.lastColor ?? (
+    data.whiteEggs !== undefined && data.whiteEggs > current.whiteEggs
+      ? 'Branco'
+      : data.brownEggs !== undefined && data.brownEggs > current.brownEggs
+      ? 'Marrom'
+      : current.lastColor
+  );
+
+  const updated: ProductionData = {
+    ...current,
+    eggs: total,
+    eggsCount: total,
+    whiteEggs: white,
+    brownEggs: brown,
+    lastColor,
+    updatedAt: new Date().toISOString(),
+  };
+
+  try {
+    localStorage.setItem(LOCAL_STORAGE_PROD_KEY, JSON.stringify(updated));
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('production:local_update', { detail: updated }));
+    }
+  } catch (e) {
+    // ignore
+  }
+
+  return updated;
 }
 
 /**
  * Get current egg production count
  */
 export async function getProduction(): Promise<ProductionData> {
-  return fetchAPI<ProductionData>('/production');
+  try {
+    const data = await fetchAPI<ProductionData>('/production');
+    if (data && (typeof data.whiteEggs === 'number' || typeof data.brownEggs === 'number')) {
+      return saveLocalProduction(data);
+    }
+  } catch {
+    // Backend offline ou indisponível - usa persistência local
+  }
+  return getLocalProduction();
+}
+
+/**
+ * Define diretamente a quantidade de ovos brancos e marrons
+ */
+export async function setProduction(data: {
+  whiteEggs: number;
+  brownEggs: number;
+  lastColor?: string | null;
+}): Promise<ProductionData> {
+  const local = saveLocalProduction(data);
+  try {
+    const res = await fetchAPI<ProductionData>('/production/set', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+    return res;
+  } catch {
+    return local;
+  }
 }
 
 /**
@@ -158,12 +260,29 @@ export async function getProduction(): Promise<ProductionData> {
  */
 export async function incrementProduction(
   amount: number = 1,
-  color?: string
-): Promise<{ success: boolean; newCount: number; color: string }> {
-  return fetchAPI('/production/increment', {
-    method: 'POST',
-    body: JSON.stringify({ amount, color }),
-  });
+  color: 'Branco' | 'Marrom'
+): Promise<ProductionData & { success: boolean; newCount: number }> {
+  try {
+    const result = await fetchAPI<ProductionData & { success: boolean; newCount: number }>('/production/increment', {
+      method: 'POST',
+      body: JSON.stringify({ amount, color }),
+    });
+    saveLocalProduction(result);
+    return result;
+  } catch {
+    const current = getLocalProduction();
+    const isWhite = color === 'Branco';
+    const updated = saveLocalProduction({
+      whiteEggs: current.whiteEggs + (isWhite ? amount : 0),
+      brownEggs: current.brownEggs + (!isWhite ? amount : 0),
+      lastColor: color,
+    });
+    return {
+      ...updated,
+      success: true,
+      newCount: updated.eggsCount,
+    };
+  }
 }
 
 // ============================================================================

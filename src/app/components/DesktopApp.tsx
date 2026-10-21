@@ -35,7 +35,6 @@ const navItems: { id: Screen; label: string; Icon: typeof Home }[] = [
 ];
 
 export function DesktopApp() {
-  const [eggCount, setEggCount]     = useState(245);
   const [lampOn, setLampOn]         = useState(false);
   const [darkMode, setDarkMode]     = useState(true);
   const [currentScreen, setCurrentScreen] = useState<Screen>("dashboard");
@@ -313,10 +312,9 @@ export function DesktopApp() {
 
               <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5 mb-6">
                 <ProductionCard
-                  eggCount={eggCount}
-                  lastColor="Marrom"
-                  onIncrement={() => setEggCount(n => n + 1)}
                   darkMode={dm}
+                  canControl={isAuthenticated}
+                  onRequireAuth={() => navigate("login")}
                 />
                 <IncubationCard
                   lampOn={lampOn}
