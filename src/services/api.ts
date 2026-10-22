@@ -62,6 +62,17 @@ export async function sendContactMessage(data: { name: string; email: string; me
     throw new Error(typeof result.error === 'string' ? result.error : 'Nao foi possivel enviar sua mensagem. Tente novamente.');
   }
 }
+export interface ThermalSafetyStatus {
+  protected: boolean;
+  state: 'CRITICAL_OVERHEAT' | 'THERMAL_PROTECTION_CLEARED' | null;
+  temperature: number | null;
+  deviceId: string | null;
+  updatedAt: string | null;
+}
+
+export async function getThermalSafetyStatus(): Promise<ThermalSafetyStatus> {
+  return fetchAPI<ThermalSafetyStatus>('/devices/safety-status');
+}
 export interface DeviceStatus {
   deviceId: string | null;
   online: boolean;

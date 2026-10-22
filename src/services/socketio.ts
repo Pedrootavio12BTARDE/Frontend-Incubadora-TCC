@@ -57,6 +57,8 @@ class SocketIOService {
       });
       socket.on("sensor:update", (data) => this.emit("sensor:update", data));
       socket.on("actuator:update", (data) => this.emit("actuator:update", data));
+      socket.on('CRITICAL_OVERHEAT', (data) => this.emit('CRITICAL_OVERHEAT', data));
+      socket.on('THERMAL_PROTECTION_CLEARED', (data) => this.emit('THERMAL_PROTECTION_CLEARED', data));
       socket.on("production:update", (data) => this.emit("production:update", data));
       socket.on("device:update", (data) => this.emit("device:update", data));
 

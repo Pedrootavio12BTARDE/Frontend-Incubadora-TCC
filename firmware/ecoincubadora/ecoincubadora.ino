@@ -5,6 +5,9 @@
 #include <DHT.h>
 #include <math.h>
 #include <time.h>
+#include <freertos/FreeRTOS.h>
+#include <freertos/task.h>
+#include <freertos/semphr.h
 #include "secrets.h"
 #ifndef DEVICE_API_TOKEN
 #define DEVICE_API_TOKEN ""
@@ -30,6 +33,10 @@ constexpr bool RELAY_ACTIVE_LOW = true;
 constexpr unsigned long SENSOR_INTERVAL_MS = 5000;
 constexpr unsigned long DEVICE_HEARTBEAT_INTERVAL_MS = 15000;
 constexpr unsigned long LAMP_POLL_INTERVAL_MS = 2000;
+constexpr unsigned long THERMAL_CHECK_INTERVAL_MS = 1000;
+constexpr float OVERHEAT_LIMIT_C = 39.5f;
+constexpr float THERMAL_SAFE_LIMIT_C = 37.5f;
+constexpr unsigned long THERMAL_EVENT_RETRY_INTERVAL_MS = 5000;
 constexpr unsigned long MOTOR_COMMAND_POLL_INTERVAL_MS = 1000;
 constexpr unsigned long MOTOR_MODE_POLL_INTERVAL_MS = 10000;
 constexpr uint32_t AUTO_ROLL_INTERVAL_MS = 4UL * 60UL * 60UL * 1000UL;
@@ -52,8 +59,20 @@ unsigned long lastAutoRollAt = 0;
 
 bool wifiStarted = false;
 bool wifiWasConnected = false;
-bool lampIsOn = false;
-bool lampNeedsSync = false;
+volatile bool lampIsOn = false;
+volatile bool lampNeedsSync = false;
+volatile bool thermalProtectionActive = false;
+bool thermalSafetyNeedsSync = false;
+
+unsigned long lastThermalSafetySync = 0;
+float thermalEventTemperature = NAN;
+volatile uint8_t pendingThermalTransition = 0;
+volatile uint8_t queuedThermalTransition = 0;
+volatile float pendingThermalTemperature = NAN;
+volatile float queuedThermalTemperature = NAN;
+SemaphoreHandle_t dhtMutex = nullptr;
+portMUX_TYPE thermalSafetyMux = portMUX_INITIALIZER_UNLOCKED;
+String thermalStateToSync;
 bool motorRunning = false;
 bool motorQueueInitialized = false;
 bool autoModeEnabled = false;
@@ -173,8 +192,83 @@ bool sendLampCommand(bool on) {
   return status >= 200 && status < 300;
 }
 
+void thermalSafetyTask(void* parameter) {
+  (void)parameter;
+  for (;;) {
+    float temperature = NAN;
+    if (dhtMutex && xSemaphoreTake(dhtMutex, pdMS_TO_TICKS(250)) == pdTRUE) {
+      temperature = dht.readTemperature();
+      xSemaphoreGive(dhtMutex);
+    }
+
+    if (isfinite(temperature) && temperature > 0) {
+      bool cutLamp = false;
+      uint8_t transition = 0;
+      portENTER_CRITICAL(&thermalSafetyMux);
+      if (!thermalProtectionActive && temperature >= OVERHEAT_LIMIT_C) {
+        thermalProtectionActive = true;
+        lampNeedsSync = false;
+        if (pendingThermalTransition == 0) {
+          pendingThermalTransition = 1;
+          pendingThermalTemperature = temperature;
+        } else {
+          queuedThermalTransition = 1;
+          queuedThermalTemperature = temperature;
+        }
+        transition = 1;
+        cutLamp = true;
+      } else if (thermalProtectionActive && temperature <= THERMAL_SAFE_LIMIT_C) {
+        thermalProtectionActive = false;
+        lampNeedsSync = false;
+        if (pendingThermalTransition == 0) {
+          pendingThermalTransition = 2;
+          pendingThermalTemperature = temperature;
+        } else {
+          queuedThermalTransition = 2;
+          queuedThermalTemperature = temperature;
+        }
+        transition = 2;
+        cutLamp = true;
+      }
+      portEXIT_CRITICAL(&thermalSafetyMux);
+
+      if (cutLamp) {
+        lampIsOn = false;
+        digitalWrite(LAMP_RELAY_PIN, relayOffLevel());
+        Serial.printf(transition == 1
+          ? "ALERTA CRITICO: %.1f C. Rele da lampada desligado.\n"
+          : "Temperatura segura: %.1f C. Protecao liberada; lampada segue desligada.\n",
+          temperature);
+      }
+    }
+    if (thermalProtectionActive) {
+      lampIsOn = false;
+      digitalWrite(LAMP_RELAY_PIN, relayOffLevel());
+    }
+    vTaskDelay(pdMS_TO_TICKS(THERMAL_CHECK_INTERVAL_MS));
+  }
+}
+
+void consumeThermalTransition() {
+  if (thermalSafetyNeedsSync) return;
+  uint8_t transition;
+  float temperature;
+  portENTER_CRITICAL(&thermalSafetyMux);
+  transition = pendingThermalTransition;
+  temperature = pendingThermalTemperature;
+  pendingThermalTransition = queuedThermalTransition;
+  pendingThermalTemperature = queuedThermalTemperature;
+  queuedThermalTransition = 0;
+  queuedThermalTemperature = NAN;
+  portEXIT_CRITICAL(&thermalSafetyMux);
+  if (transition == 0) return;
+
+  thermalStateToSync = transition == 1 ? "CRITICAL_OVERHEAT" : "THERMAL_PROTECTION_CLEARED";
+  thermalEventTemperature = temperature;
+  thermalSafetyNeedsSync = true;
+}
 void syncLocalLampCommand(unsigned long now) {
-  if (!lampNeedsSync || now - lastLampSync < 1000) return;
+  if (thermalProtectionActive || !lampNeedsSync || now - lastLampSync < 1000) return;
   lastLampSync = now;
   lampNeedsSync = !sendLampCommand(lampIsOn);
 }
@@ -193,7 +287,7 @@ void pollLampState() {
     if (!error) {
       const char* state = response["lamp"] | "off";
       const bool requestedLampState = strcmp(state, "on") == 0;
-      applyLamp(requestedLampState);
+      applyLamp(thermalProtectionActive ? false : requestedLampState);
       Serial.printf("Estado recebido da API: lamp=%s; GPIO26=%s (%d)\n",
                     state,
                     requestedLampState ? "ligado" : "desligado",
@@ -367,6 +461,27 @@ String currentDeviceId() {
   return "ESP32-" + mac;
 }
 
+void syncThermalSafetyEvent(unsigned long now) {
+  if (!thermalSafetyNeedsSync || WiFi.status() != WL_CONNECTED ||
+      now - lastThermalSafetySync < THERMAL_EVENT_RETRY_INTERVAL_MS) return;
+  lastThermalSafetySync = now;
+
+  HTTPClient http;
+  if (!beginRequest(http, "/devices/thermal-alert")) return;
+  StaticJsonDocument<192> request;
+  request["deviceId"] = currentDeviceId();
+  request["temperature"] = thermalEventTemperature;
+  request["state"] = thermalStateToSync;
+  String body;
+  serializeJson(request, body);
+
+  http.addHeader("Content-Type", "application/json");
+  http.addHeader("x-device-token", DEVICE_API_TOKEN);
+  const int status = http.POST(body);
+  logHttpFailure("Envio do alerta termico", http, status);
+  http.end();
+  if (status >= 200 && status < 300) thermalSafetyNeedsSync = false;
+}
 void sendDeviceHeartbeat() {
   if (WiFi.status() != WL_CONNECTED) return;
 
@@ -388,8 +503,13 @@ void sendDeviceHeartbeat() {
 void postSensorReadings() {
   if (WiFi.status() != WL_CONNECTED) return;
 
-  const float temperature = dht.readTemperature();
-  const float humidity = dht.readHumidity();
+  float temperature = NAN;
+  float humidity = NAN;
+  if (dhtMutex && xSemaphoreTake(dhtMutex, pdMS_TO_TICKS(250)) == pdTRUE) {
+    temperature = dht.readTemperature();
+    humidity = dht.readHumidity();
+    xSemaphoreGive(dhtMutex);
+  }
   const int soilRaw = analogRead(SOIL_SENSOR_PIN);
   const float soilHumidity = readSoilHumidityPercent(soilRaw);
 
@@ -432,6 +552,16 @@ void setup() {
 
   analogReadResolution(12);
   dht.begin();
+  dhtMutex = xSemaphoreCreateMutex();
+  if (dhtMutex) {
+    const BaseType_t taskCreated = xTaskCreatePinnedToCore(thermalSafetyTask, "ThermalSafety", 4096, nullptr, 2, nullptr, 1);
+    if (taskCreated != pdPASS) dhtMutex = nullptr;
+  }
+  if (!dhtMutex) {
+    thermalProtectionActive = true;
+    applyLamp(false);
+    Serial.println("Falha ao iniciar protecao termica do DHT; lampada bloqueada por seguranca.");
+  }
   WiFi.mode(WIFI_STA);
   WiFi.setAutoReconnect(true);
   WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
@@ -445,6 +575,7 @@ void loop() {
   const unsigned long now = millis();
 
   serviceMotorTimer();
+  consumeThermalTransition();
   serviceAutomaticRoll(now);
 
   const bool wifiConnected = WiFi.status() == WL_CONNECTED;
@@ -465,6 +596,8 @@ void loop() {
   }
 
   if (!ensureSystemTime(now)) return;
+
+  syncThermalSafetyEvent(now);
 
   if (lastDeviceHeartbeat == 0 || now - lastDeviceHeartbeat >= DEVICE_HEARTBEAT_INTERVAL_MS) {
     lastDeviceHeartbeat = now;

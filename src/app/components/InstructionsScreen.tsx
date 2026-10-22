@@ -35,7 +35,7 @@ export function InstructionsScreen({ onSupport, onBack, darkMode = false }: Inst
       number: 4,
       icon: Thermometer,
       title: "Controle da lâmpada",
-      description: "Use o controle da lâmpada na dashboard para ligar ou desligar o relé de aquecimento. A temperatura é monitorada, mas a lâmpada não é acionada automaticamente por uma meta de temperatura nesta versão.",
+      description: "Use o controle da dashboard para ligar ou desligar o relé de aquecimento. A proteção térmica desliga a lâmpada ao atingir 39,5 °C e mantém o bloqueio até a temperatura cair para 37,5 °C ou menos; depois, a lâmpada permanece desligada até ser acionada manualmente.",
       color: "#FF6B6B",
     },
     {

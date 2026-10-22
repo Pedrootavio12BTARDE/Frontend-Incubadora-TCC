@@ -144,7 +144,17 @@ router.patch('/lamp', requireAuth, async (req, res) => {
     if (typeof on !== 'boolean') {
       return res.status(400).json({ error: 'on must be a boolean' });
     }
-    
+
+    if (on) {
+      const thermalState = await prisma.actuatorLog.findFirst({
+        where: { actuator: 'thermal_safety' },
+        orderBy: { createdAt: 'desc' },
+      });
+      if (thermalState?.action === 'CRITICAL_OVERHEAT') {
+        return res.status(423).json({ error: 'lamp disabled by thermal safety protection' });
+      }
+    }
+
     // Cria registro de log
     const payload = { 
       actuator: 'lamp', 
