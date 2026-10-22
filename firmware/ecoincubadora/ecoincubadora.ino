@@ -31,6 +31,8 @@ constexpr unsigned long SENSOR_INTERVAL_MS = 5000;
 constexpr unsigned long DEVICE_HEARTBEAT_INTERVAL_MS = 15000;
 constexpr unsigned long LAMP_POLL_INTERVAL_MS = 2000;
 constexpr unsigned long MOTOR_COMMAND_POLL_INTERVAL_MS = 1000;
+constexpr unsigned long MOTOR_MODE_POLL_INTERVAL_MS = 10000;
+constexpr uint32_t AUTO_ROLL_INTERVAL_MS = 4UL * 60UL * 60UL * 1000UL;
 
 // Tempo ideal de rotação da esteira para evitar queda dos ovos (1.5 segundos)
 constexpr uint32_t DEFAULT_MOTOR_DURATION_MS = 1500;
@@ -45,6 +47,8 @@ unsigned long lastLampPoll = 0;
 unsigned long lastLampSync = 0;
 unsigned long lastWifiDiagnostic = 0;
 unsigned long lastMotorCommandPoll = 0;
+unsigned long lastMotorModePoll = 0;
+unsigned long lastAutoRollAt = 0;
 
 bool wifiStarted = false;
 bool wifiWasConnected = false;
@@ -52,6 +56,7 @@ bool lampIsOn = false;
 bool lampNeedsSync = false;
 bool motorRunning = false;
 bool motorQueueInitialized = false;
+bool autoModeEnabled = false;
 bool timeSyncStarted = false;
 bool clockWasSynchronized = false;
 bool rotateClockwise = true; // Alterna entre Sentido Horário e Anti-Horário
@@ -204,6 +209,29 @@ void pollLampState() {
   http.end();
 }
 
+void pollMotorMode(unsigned long now) {
+  if (WiFi.status() != WL_CONNECTED) return;
+  HTTPClient http;
+  if (!beginRequest(http, "/actuators/motor/mode")) return;
+  const int status = http.GET();
+  if (status == HTTP_CODE_OK) {
+    StaticJsonDocument<128> response;
+    const DeserializationError error = deserializeJson(response, http.getString());
+    if (!error) {
+      const bool requestedMode = response["autoRoll"] | false;
+      if (requestedMode != autoModeEnabled) {
+        autoModeEnabled = requestedMode;
+        lastAutoRollAt = now;
+        Serial.printf("Modo automatico da esteira %s; proxima rolagem em 4 horas.\n", autoModeEnabled ? "ativado" : "desativado");
+      }
+    } else {
+      Serial.printf("JSON invalido no modo automatico: %s\n", error.c_str());
+    }
+  } else {
+    logHttpFailure("Consulta do modo automatico", http, status);
+  }
+  http.end();
+}
 bool acknowledgeMotorCommand(uint32_t commandId) {
   if (WiFi.status() != WL_CONNECTED) return false;
 
@@ -231,6 +259,7 @@ void finishMotorRotation() {
                 static_cast<unsigned long>(currentMotorCommandId),
                 rotateClockwise ? "Frente (IN1)" : "Trás (IN2)");
 
+  if (currentMotorCommandId != 0 && autoModeEnabled) lastAutoRollAt = millis();
   if (currentMotorCommandId != 0 && acknowledgeMotorCommand(currentMotorCommandId)) {
     currentMotorCommandId = 0;
   }
@@ -242,6 +271,15 @@ void serviceMotorTimer() {
   }
 }
 
+void serviceAutomaticRoll(unsigned long now) {
+  if (!autoModeEnabled || motorRunning || now - lastAutoRollAt < AUTO_ROLL_INTERVAL_MS) return;
+  lastAutoRollAt = now;
+  currentMotorCommandId = 0;
+  motorStopAt = now + DEFAULT_MOTOR_DURATION_MS;
+  motorRunning = true;
+  startMotor(rotateClockwise);
+  Serial.printf("Rolagem automatica iniciada por %lu ms no sentido: %s\n", static_cast<unsigned long>(DEFAULT_MOTOR_DURATION_MS), rotateClockwise ? "Frente" : "Tras");
+}
 void pollMotorCommands() {
   if (WiFi.status() != WL_CONNECTED || motorRunning) return;
 
@@ -407,6 +445,7 @@ void loop() {
   const unsigned long now = millis();
 
   serviceMotorTimer();
+  serviceAutomaticRoll(now);
 
   const bool wifiConnected = WiFi.status() == WL_CONNECTED;
   if (wifiConnected && !wifiWasConnected) {
@@ -430,6 +469,11 @@ void loop() {
   if (lastDeviceHeartbeat == 0 || now - lastDeviceHeartbeat >= DEVICE_HEARTBEAT_INTERVAL_MS) {
     lastDeviceHeartbeat = now;
     sendDeviceHeartbeat();
+  }
+
+  if (now - lastMotorModePoll >= MOTOR_MODE_POLL_INTERVAL_MS) {
+    lastMotorModePoll = now;
+    pollMotorMode(now);
   }
 
   if (!motorRunning) {

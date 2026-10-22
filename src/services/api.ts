@@ -154,6 +154,21 @@ export async function rotateMotor(durationMs: number = 1500): Promise<{
   });
 }
 
+export interface MotorMode {
+  autoRoll: boolean;
+  intervalHours: number;
+}
+
+export async function getMotorMode(): Promise<MotorMode> {
+  return fetchAPI<MotorMode>('/actuators/motor/mode');
+}
+
+export async function setMotorAutoMode(autoRoll: boolean): Promise<MotorMode> {
+  return fetchAPI<MotorMode>('/actuators/motor/mode', {
+    method: 'PATCH',
+    body: JSON.stringify({ autoRoll }),
+  });
+}
 // ============================================================================
 // PRODUCTION ENDPOINTS
 // ============================================================================

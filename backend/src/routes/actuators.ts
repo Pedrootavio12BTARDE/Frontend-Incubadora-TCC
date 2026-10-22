@@ -163,6 +163,44 @@ router.patch('/lamp', requireAuth, async (req, res) => {
   }
 });
 
+router.get('/motor/mode', async (_req, res) => {
+  try {
+    const modeLog = await prisma.actuatorLog.findFirst({
+      where: { actuator: 'motor_mode' },
+      orderBy: { createdAt: 'desc' },
+    });
+    const autoRoll = modeLog?.action === 'on';
+    res.json({ autoRoll, intervalHours: 4 });
+  } catch (error) {
+    res.status(500).json({ error: 'failed to load motor mode' });
+  }
+});
+
+router.patch('/motor/mode', requireAuth, async (req, res) => {
+  try {
+    const { autoRoll } = req.body;
+    if (typeof autoRoll !== 'boolean') {
+      return res.status(400).json({ error: 'autoRoll must be a boolean' });
+    }
+
+    await prisma.actuatorLog.create({
+      data: {
+        actuator: 'motor_mode',
+        action: autoRoll ? 'on' : 'off',
+        payload: JSON.stringify({ autoRoll, intervalHours: 4 }),
+      },
+    });
+    const mode = { autoRoll, intervalHours: 4 };
+    req.app.get('io')?.emit('actuator:update', {
+      actuator: 'motor_mode',
+      action: autoRoll ? 'on' : 'off',
+      ...mode,
+    });
+    res.json({ ok: true, ...mode });
+  } catch (error) {
+    res.status(500).json({ error: 'failed to update motor mode' });
+  }
+});
 router.post('/motor/rotate', requireAuth, async (req, res) => {
   try {
     const durationMs = req.body?.durationMs === undefined ? 1000 : Number(req.body.durationMs);
