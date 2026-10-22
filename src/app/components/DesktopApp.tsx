@@ -23,15 +23,15 @@ type Screen =
   | "fertilizer" | "reports" | "product" | "about" | "references";
 
 const navItems: { id: Screen; label: string; Icon: typeof Home }[] = [
-  { id: "dashboard",    label: "Dashboard",   Icon: Home },
-  { id: "instructions", label: "Manual",       Icon: BookOpen },
-  { id: "product",      label: "Produtos",     Icon: Package },
-  { id: "about",        label: "Equipe",       Icon: Users },
-  { id: "references",   label: "Referências",  Icon: BookOpen },
-  { id: "reports",      label: "Relatórios",   Icon: BarChart3 },
-  { id: "fertilizer",   label: "Adubo",        Icon: Leaf },
-  { id: "game",         label: "Jogo",         Icon: Gamepad2 },
-  { id: "login",        label: "Login",        Icon: LogIn },
+  { id: "dashboard",    label: "Dashboard",        Icon: Home },
+  { id: "instructions", label: "Manual",           Icon: BookOpen },
+  { id: "product",      label: "Produtos",         Icon: Package },
+  { id: "about",        label: "Equipe",           Icon: Users },
+  { id: "references",   label: "Referências",      Icon: BookOpen },
+  { id: "reports",      label: "Relatórios",       Icon: BarChart3 },
+  { id: "fertilizer",   label: "Sustentabilidade", Icon: Leaf },
+  { id: "game",         label: "Jogo",             Icon: Gamepad2 },
+  { id: "login",        label: "Login",            Icon: LogIn },
 ];
 
 export function DesktopApp() {
@@ -274,14 +274,6 @@ export function DesktopApp() {
 
           ) : currentScreen === "fertilizer" ? (
             <div className="max-w-5xl mx-auto px-4 sm:px-8 py-8">
-              <div className="mb-6">
-                <h2 className={`text-3xl font-black mb-1 ${dm ? "text-white" : "text-[#001F3F]"}`} style={{ fontFamily: "Quicksand, sans-serif" }}>
-                  Gestão de Adubo Orgânico
-                </h2>
-                <p className={`text-sm ${dm ? "text-slate-300" : "text-[#001F3F]/70"}`} style={{ fontFamily: "Quicksand, sans-serif" }}>
-                  Monitoramento do coletor de resíduos
-                </p>
-              </div>
               <FertilizerScreen darkMode={dm} isDesktop={true} />
             </div>
 
@@ -324,7 +316,11 @@ export function DesktopApp() {
                   onRequireAuth={() => navigate("login")}
                 />
                 <div className="md:col-span-2 xl:col-span-1">
-                  <SustainabilityCard level={75} darkMode={dm} />
+                  <SustainabilityCard
+                    level={75}
+                    darkMode={dm}
+                    onNavigate={() => navigate("fertilizer")}
+                  />
                 </div>
               </div>
 

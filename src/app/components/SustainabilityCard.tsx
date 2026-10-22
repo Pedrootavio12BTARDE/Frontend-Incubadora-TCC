@@ -1,32 +1,53 @@
-import { Leaf } from "lucide-react";
+import { Leaf, ArrowRight } from "lucide-react";
 
 interface SustainabilityCardProps {
   level: number; // 0-100
   darkMode?: boolean;
+  onNavigate?: () => void;
 }
 
-export function SustainabilityCard({ level, darkMode = false }: SustainabilityCardProps) {
+export function SustainabilityCard({ level, darkMode = false, onNavigate }: SustainabilityCardProps) {
   return (
     <div>
-      <h2 className={`text-base mb-2 transition-colors duration-300 ${darkMode ? 'text-white' : 'text-[#001F3F]'}`} style={{ fontFamily: 'Quicksand, sans-serif', fontWeight: 600 }}>
-        Sustentabilidade
-      </h2>
-      <div className={`relative backdrop-blur-xl rounded-[1.5rem] shadow-[0_8px_32px_rgba(0,31,63,0.12)] p-4 overflow-hidden transition-all duration-300 ${
-        darkMode
-          ? 'bg-gradient-to-br from-[#1a1f35]/80 to-[#0d1425]/60 border border-[#98FFD9]/20'
-          : 'bg-gradient-to-br from-white/60 to-white/30 border border-white/60'
-      }`}>
+      <div className="flex items-center justify-between mb-2">
+        <h2 className={`text-base transition-colors duration-300 ${darkMode ? 'text-white' : 'text-[#001F3F]'}`} style={{ fontFamily: 'Quicksand, sans-serif', fontWeight: 600 }}>
+          Sustentabilidade
+        </h2>
+        {onNavigate && (
+          <button
+            type="button"
+            onClick={onNavigate}
+            className="text-[11px] font-bold text-[#98FFD9] hover:underline flex items-center gap-1 transition-all cursor-pointer"
+            style={{ fontFamily: 'Quicksand, sans-serif' }}
+          >
+            Ver página completa <ArrowRight className="w-3 h-3" />
+          </button>
+        )}
+      </div>
+
+      <div
+        onClick={onNavigate}
+        className={`relative backdrop-blur-xl rounded-[1.5rem] shadow-[0_8px_32px_rgba(0,31,63,0.12)] p-4 overflow-hidden transition-all duration-300 ${
+          onNavigate ? "cursor-pointer hover:scale-[1.01]" : ""
+        } ${
+          darkMode
+            ? 'bg-gradient-to-br from-[#1a1f35]/80 to-[#0d1425]/60 border border-[#98FFD9]/20'
+            : 'bg-gradient-to-br from-white/60 to-white/30 border border-white/60'
+        }`}
+      >
         {/* Efeito de brilho */}
-        <div className="absolute top-0 left-0 w-24 h-24 bg-gradient-to-br from-[#98FFD9]/20 to-transparent rounded-full blur-3xl" />
+        <div className="absolute top-0 left-0 w-24 h-24 bg-gradient-to-br from-[#98FFD9]/20 to-transparent rounded-full blur-3xl pointer-events-none" />
 
         <div className="relative flex items-center gap-3 mb-3">
           <div className="bg-gradient-to-br from-[#98FFD9] to-[#6EDDC4] p-2.5 rounded-xl shadow-lg">
-            <Leaf className="w-5 h-5 text-white" strokeWidth={2} />
+            <Leaf className="w-5 h-5 text-[#001F3F]" strokeWidth={2.5} />
           </div>
           <div className="flex-1">
-            {/* CORRIGIDO AQUI: adicionada a condicional do darkMode para o texto */}
             <div className={`text-sm transition-colors duration-300 ${darkMode ? 'text-white' : 'text-[#001F3F]'}`} style={{ fontFamily: 'Quicksand, sans-serif', fontWeight: 600 }}>
               Nível do Coletor de Adubo
+            </div>
+            <div className={`text-[10px] ${darkMode ? 'text-white/60' : 'text-[#001F3F]/60'}`}>
+              Resíduos orgânicos para compostagem
             </div>
           </div>
         </div>
@@ -47,7 +68,7 @@ export function SustainabilityCard({ level, darkMode = false }: SustainabilityCa
           {/* Porcentagem com efeito glow */}
           <div className="mt-2 flex items-center justify-between">
             <div className={`text-xs transition-colors duration-300 ${darkMode ? 'text-white/70' : 'text-[#001F3F] opacity-60'}`} style={{ fontFamily: 'Quicksand, sans-serif' }}>
-              Capacidade
+              Capacidade ocupada
             </div>
             <div
               className="text-xl bg-gradient-to-br from-[#98FFD9] to-[#44A6A0] bg-clip-text text-transparent"
