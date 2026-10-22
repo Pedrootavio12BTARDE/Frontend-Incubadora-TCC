@@ -3,6 +3,7 @@ import prisma from '../lib/prisma';
 import jwt from 'jsonwebtoken';
 import bcrypt from 'bcryptjs';
 import rateLimit from 'express-rate-limit';
+import { requireAuth } from '../middleware/requireAuth';
 
 const router = Router();
 const authLimiter = rateLimit({
@@ -31,7 +32,7 @@ router.post('/login', async (req, res) => {
     if (!secret) return res.status(503).json({ error: 'authentication is not configured' });
 
     const token = jwt.sign({ userId: user.id, role: user.role }, secret, { expiresIn: '8h' });
-    res.json({ token, user: { id: user.id, email: user.email, name: user.name, role: user.role } });
+    res.json({ token, user: { id: user.id, email: user.email, name: user.name, avatar: user.avatar, role: user.role } });
   } catch (err) {
     res.status(500).json({ error: 'failed to login' });
   }
@@ -63,10 +64,46 @@ router.post('/register', async (req, res) => {
     if (!secret) return res.status(503).json({ error: 'authentication is not configured' });
 
     const token = jwt.sign({ userId: user.id, role: user.role }, secret, { expiresIn: '8h' });
-    res.status(201).json({ token, user: { id: user.id, email: user.email, name: user.name, role: user.role } });
+    res.status(201).json({ token, user: { id: user.id, email: user.email, name: user.name, avatar: user.avatar, role: user.role } });
   } catch (err) {
     res.status(500).json({ error: 'failed to register user' });
   }
 });
 
+router.get('/profile', requireAuth, async (req, res) => {
+  try {
+    const user = await prisma.user.findUnique({
+      where: { id: Number(res.locals.authUserId) },
+      select: { id: true, email: true, name: true, avatar: true, role: true },
+    });
+    if (!user) return res.status(404).json({ error: 'user not found' });
+    return res.json({ user });
+  } catch {
+    return res.status(500).json({ error: 'failed to load profile' });
+  }
+});
+
+router.patch('/profile', requireAuth, async (req, res) => {
+  const name = typeof req.body?.name === 'string' ? req.body.name.trim() : '';
+  const avatar = req.body?.avatar === null ? null : req.body?.avatar;
+  const allowedAvatars = ['leaf', 'egg', 'robot', 'planet'];
+
+  if (!name || name.length > 60) {
+    return res.status(400).json({ error: 'display name must contain between 1 and 60 characters' });
+  }
+  if (avatar !== null && (typeof avatar !== 'string' || !allowedAvatars.includes(avatar))) {
+    return res.status(400).json({ error: 'invalid avatar selection' });
+  }
+
+  try {
+    const user = await prisma.user.update({
+      where: { id: Number(res.locals.authUserId) },
+      data: { name, avatar },
+      select: { id: true, email: true, name: true, avatar: true, role: true },
+    });
+    return res.json({ user });
+  } catch {
+    return res.status(500).json({ error: 'failed to update profile' });
+  }
+});
 export default router;

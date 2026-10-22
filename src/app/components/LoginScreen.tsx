@@ -1,14 +1,15 @@
 import { useState } from "react";
-import { Mail, Lock, Wifi, Activity, Thermometer, Droplets, Home, Moon, Sun } from "lucide-react";
+import { Mail, Lock, Activity, Thermometer, Droplets, Home, Moon, Sun } from "lucide-react";
 import logoImg from "../../imports/logo_cerebro.png";
-import { login, register } from "../../services/api";
+import { login, register, type AuthUser } from "../../services/api";
+import { DeviceStatusCard } from "./DeviceStatusCard";
 
 interface LoginScreenProps {
   darkMode?: boolean;
   isDesktop?: boolean;
   onBack?: () => void;
   onToggleDarkMode?: () => void;
-  onLoginSuccess?: () => void;
+  onLoginSuccess?: (user: AuthUser) => void;
 }
 
 export function LoginScreen({ darkMode = false, isDesktop = false, onBack, onToggleDarkMode, onLoginSuccess }: LoginScreenProps) {
@@ -30,12 +31,10 @@ export function LoginScreen({ darkMode = false, isDesktop = false, onBack, onTog
 
     setIsSubmitting(true);
     try {
-      if (isSignUp) {
-        await register(email, password);
-      } else {
-        await login(email, password);
-      }
-      onLoginSuccess?.();
+      const result = isSignUp
+        ? await register(email, password)
+        : await login(email, password);
+      onLoginSuccess?.(result.user);
     } catch (error) {
       console.error("Falha na autenticação:", error);
       setErrorMessage(isSignUp
@@ -331,38 +330,7 @@ export function LoginScreen({ darkMode = false, isDesktop = false, onBack, onTog
               }`}>65%</p>
             </div>
           </div>
-
-          {/* WiFi Status Card */}
-          <div className={`backdrop-blur-xl rounded-xl border-2 p-5 shadow-lg transition-colors duration-300 ${
-            darkMode
-              ? 'bg-gradient-to-r from-[#98FFD9]/10 to-[#6EDDC4]/10 border-[#98FFD9]/30'
-              : 'bg-gradient-to-r from-[#98FFD9]/20 to-[#6EDDC4]/20 border-[#98FFD9]/40'
-          }`}>
-            <div className="flex items-center gap-3">
-              <div className={`w-14 h-14 rounded-lg flex items-center justify-center transition-all duration-300 ${
-                darkMode 
-                  ? 'bg-gradient-to-br from-[#98FFD9]/20 to-[#6EDDC4]/20 shadow-[0_4px_12px_rgba(152,255,217,0.2)]' 
-                  : 'bg-gradient-to-br from-[#98FFD9]/30 to-[#6EDDC4]/30 shadow-[0_4px_12px_rgba(152,255,217,0.3)]'
-              }`}>
-                <div className="relative">
-                  <Wifi className={`w-7 h-7 ${darkMode ? 'text-[#98FFD9]' : 'text-[#001F3F]'}`} strokeWidth={2.5} />
-                  <div className="absolute -top-2 -right-2 w-3.5 h-3.5 rounded-full bg-green-400 animate-pulse shadow-[0_0_12px_rgba(34,197,94,0.8)]" />
-                </div>
-              </div>
-              <div>
-                <p className={`text-base transition-colors duration-300 ${
-                  darkMode ? 'text-white' : 'text-[#001F3F]'
-                }`} style={{ fontFamily: 'Quicksand, sans-serif', fontWeight: 800 }}>
-                  ESP32 Conectado
-                </p>
-                <p className={`text-xs transition-colors duration-300 ${
-                  darkMode ? 'text-white/70' : 'text-[#001F3F]/70'
-                }`} style={{ fontFamily: 'Quicksand, sans-serif', fontWeight: 600 }}>
-                  Sistema Online
-                </p>
-              </div>
-            </div>
-          </div>
+          <DeviceStatusCard darkMode={darkMode} />
         </div>
 
         {/* Bottom Tagline */}

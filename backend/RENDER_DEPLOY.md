@@ -46,3 +46,8 @@ O formulario envia nome, e-mail e mensagem para `devmindsti@gmail.com`. Para hab
 - `CONTACT_FROM_EMAIL`: remetente verificado, como `EcoIncubadora <contato@seudominio.com>`.
 
 Mantenha a chave no backend, fora do repositorio. O e-mail informado sera usado como `Reply-To`. Sem essas variaveis, o formulario informa que o envio esta temporariamente indisponivel.
+
+
+## Status do ESP32
+
+O firmware envia um heartbeat autenticado a cada 15 segundos usando o MAC Wi-Fi como ID. Configure ESP32_DEVICE_TOKEN no backend do Render e informe o mesmo valor em DEVICE_API_TOKEN no arquivo local firmware/ecoincubadora/secrets.h, copiado do exemplo. Gere um segredo aleatorio com pelo menos 32 caracteres e mantenha secrets.h fora do Git. Apos gravar o firmware e aplicar a migracao Prisma, o painel considera o dispositivo offline apos 45 segundos sem heartbeat.

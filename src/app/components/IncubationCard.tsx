@@ -121,12 +121,12 @@ export function IncubationCard({
           {isConnected ? (
             <>
               <Wifi className="w-3.5 h-3.5 text-green-500" />
-              <span className="text-[10px] text-green-600" style={{ fontFamily: 'Quicksand, sans-serif' }}>Online</span>
+              <span className="text-[10px] text-green-600" style={{ fontFamily: 'Quicksand, sans-serif' }}>Servidor Online</span>
             </>
           ) : (
             <>
               <WifiOff className="w-3.5 h-3.5 text-gray-400" />
-              <span className="text-[10px] text-gray-500" style={{ fontFamily: 'Quicksand, sans-serif' }}>Offline</span>
+              <span className="text-[10px] text-gray-500" style={{ fontFamily: 'Quicksand, sans-serif' }}>Servidor Offline</span>
             </>
           )}
         </div>

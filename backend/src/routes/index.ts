@@ -28,6 +28,7 @@ import production from './production';
 import auth from './auth';
 import reports from './reports';
 import contact from './contact';
+import devices from './devices';
 
 // Cria o router principal
 const router = Router();
@@ -63,6 +64,7 @@ router.use('/auth', auth);
 // Endpoints de Relatórios e Histórico
 router.use('/reports', reports);
 router.use('/contact', contact);
+router.use('/devices', devices);
 // Exemplos:
 //   GET /api/v1/reports/history → dados dos últimos N sensores
 

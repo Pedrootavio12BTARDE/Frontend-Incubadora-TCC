@@ -11,10 +11,12 @@ import { AboutScreen } from "./AboutScreen";
 import { ReferencesScreen } from "./ReferencesScreen";
 import { GameLandingScreen } from "./GameLandingScreen";
 import { LoginScreen } from "./LoginScreen";
-import { clearAuthToken, getAuthToken } from "../../services/api";
+import { clearAuthToken, getAuthToken, getStoredAuthUser, refreshProfile, type AuthUser } from "../../services/api";
+import { ProfileMenu } from "./ProfileMenu";
+import { DeviceStatusCard } from "./DeviceStatusCard";
 import {
   Home, Gamepad2, Package, BarChart3, Users, BookOpen, Leaf,
-  Wifi, LogIn, LogOut, Moon, Sun, Menu, X, ChevronRight,
+  LogIn, LogOut, Moon, Sun, Menu, X, ChevronRight,
 } from "lucide-react";
 import logoImg from "../../imports/logo_cerebro.png";
 
@@ -40,6 +42,12 @@ export function DesktopApp() {
   const [currentScreen, setCurrentScreen] = useState<Screen>("dashboard");
   const [sidebarOpen, setSidebarOpen]     = useState(false);
   const [isAuthenticated, setIsAuthenticated] = useState(() => Boolean(getAuthToken()));
+  const [user, setUser] = useState<AuthUser | null>(() => getStoredAuthUser());
+
+  useEffect(() => {
+    if (!getAuthToken()) return;
+    refreshProfile().then(setUser).catch(() => {});
+  }, []);
 
   // Sincroniza a classe .dark com o elemento HTML raiz
   useEffect(() => {
@@ -50,13 +58,18 @@ export function DesktopApp() {
     }
   }, [darkMode]);
 
+  const handleLogout = () => {
+    clearAuthToken();
+    setIsAuthenticated(false);
+    setUser(null);
+    setCurrentScreen("dashboard");
+    setSidebarOpen(false);
+  };
+
   // Fechar gaveta de navegação
   const navigate = (screen: Screen) => {
     if (screen === "login" && isAuthenticated) {
-      clearAuthToken();
-      setIsAuthenticated(false);
-      setCurrentScreen("dashboard");
-      setSidebarOpen(false);
+      handleLogout();
       return;
     }
     setCurrentScreen(screen);
@@ -109,12 +122,6 @@ export function DesktopApp() {
             </span>
           </div>
 
-          <button
-            onClick={() => setDarkMode(d => !d)}
-            className={`p-2 rounded-xl ${dm ? "text-[#98FFD9] hover:bg-white/10" : "text-[#001F3F] hover:bg-black/10"}`}
-          >
-            {dm ? <Sun className="w-5 h-5" strokeWidth={2.5} /> : <Moon className="w-5 h-5" strokeWidth={2.5} />}
-          </button>
         </header>
       )}
 
@@ -209,37 +216,28 @@ export function DesktopApp() {
                   }
                 </button>
 
-                <div className={`mt-3 p-4 rounded-2xl border-2 transition-all duration-300 ${
-                  dm ? "bg-[#98FFD9]/8 border-[#98FFD9]/25" : "bg-[#98FFD9]/15 border-[#98FFD9]/40"
-                }`}>
-                  <div className="flex items-center gap-2 mb-1.5">
-                    <div className="relative">
-                      <Wifi className="w-4 h-4 text-[#98FFD9]" strokeWidth={2.5} />
-                      <div className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full bg-[#98FFD9] animate-pulse" />
-                    </div>
-                    <p className={`text-sm font-extrabold ${dm ? "text-white" : "text-[#001F3F]"}`} style={{ fontFamily: "Quicksand, sans-serif" }}>
-                      ESP32 Conectado
-                    </p>
-                  </div>
-                  <p className={`text-xs ${dm ? "text-slate-300" : "text-[#001F3F]/70"}`} style={{ fontFamily: "Quicksand, sans-serif" }}>
-                    Wi-Fi · Sinal Excelente 92%
-                  </p>
-                </div>
+                <DeviceStatusCard darkMode={dm} />
               </div>
             </aside>
           </>
         )}
 
         {/* ── CONTENT AREA ── */}
-        <main className="flex-1 overflow-y-auto scrollbar-hide">
+        <main className="relative flex-1 overflow-y-auto scrollbar-hide">
+          {!isLoginScreen && (
+            <div className="fixed right-4 top-3 z-[60] lg:right-6 lg:top-4">
+              <ProfileMenu user={user} darkMode={dm} onRequestLogin={() => navigate("login")} onLogout={handleLogout} onProfileChange={setUser} />
+            </div>
+          )}
           {currentScreen === "login" ? (
             <LoginScreen
               darkMode={dm}
               isDesktop={true}
               onBack={() => navigate("dashboard")}
               onToggleDarkMode={() => setDarkMode(d => !d)}
-              onLoginSuccess={() => {
+              onLoginSuccess={(loggedInUser) => {
                 setIsAuthenticated(true);
+                setUser(loggedInUser);
                 navigate("dashboard");
               }}
             />

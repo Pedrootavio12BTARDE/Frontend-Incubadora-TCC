@@ -17,7 +17,9 @@ export const requireAuth: RequestHandler = (req, res, next) => {
   }
 
   try {
-    jwt.verify(token, secret);
+    const payload = jwt.verify(token, secret) as jwt.JwtPayload;
+    if (typeof payload.userId !== 'number') return res.status(401).json({ error: 'invalid token payload' });
+    res.locals.authUserId = payload.userId;
     next();
   } catch {
     return res.status(401).json({ error: 'invalid or expired authentication token' });

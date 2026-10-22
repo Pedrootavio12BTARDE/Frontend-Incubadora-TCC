@@ -6,6 +6,9 @@
 #include <math.h>
 #include <time.h>
 #include "secrets.h"
+#ifndef DEVICE_API_TOKEN
+#define DEVICE_API_TOKEN ""
+#endif
 
 const char* API_BASE_URL = "https://ecoincubadora-backend.onrender.com/api/v1";
 
@@ -25,6 +28,7 @@ constexpr int SOIL_WET_RAW = 1400;
 
 constexpr bool RELAY_ACTIVE_LOW = true;
 constexpr unsigned long SENSOR_INTERVAL_MS = 5000;
+constexpr unsigned long DEVICE_HEARTBEAT_INTERVAL_MS = 15000;
 constexpr unsigned long LAMP_POLL_INTERVAL_MS = 2000;
 constexpr unsigned long MOTOR_COMMAND_POLL_INTERVAL_MS = 1000;
 
@@ -36,6 +40,7 @@ WiFiClientSecure secureClient;
 StaticJsonDocument<4096> motorCommandResponse;
 
 unsigned long lastSensorPost = 0;
+unsigned long lastDeviceHeartbeat = 0;
 unsigned long lastLampPoll = 0;
 unsigned long lastLampSync = 0;
 unsigned long lastWifiDiagnostic = 0;
@@ -317,6 +322,31 @@ void pollMotorCommands() {
   }
 }
 
+String currentDeviceId() {
+  String mac = WiFi.macAddress();
+  mac.replace(":", "");
+  mac.toUpperCase();
+  return "ESP32-" + mac;
+}
+
+void sendDeviceHeartbeat() {
+  if (WiFi.status() != WL_CONNECTED) return;
+
+  HTTPClient http;
+  if (!beginRequest(http, "/devices/heartbeat")) return;
+
+  StaticJsonDocument<96> request;
+  request["deviceId"] = currentDeviceId();
+  String body;
+  serializeJson(request, body);
+
+  http.addHeader("Content-Type", "application/json");
+  http.addHeader("x-device-token", DEVICE_API_TOKEN);
+  const int status = http.POST(body);
+  logHttpFailure("Heartbeat do ESP32", http, status);
+  Serial.printf("Heartbeat %s: HTTP %d\n", currentDeviceId().c_str(), status);
+  http.end();
+}
 void postSensorReadings() {
   if (WiFi.status() != WL_CONNECTED) return;
 
@@ -396,6 +426,11 @@ void loop() {
   }
 
   if (!ensureSystemTime(now)) return;
+
+  if (lastDeviceHeartbeat == 0 || now - lastDeviceHeartbeat >= DEVICE_HEARTBEAT_INTERVAL_MS) {
+    lastDeviceHeartbeat = now;
+    sendDeviceHeartbeat();
+  }
 
   if (!motorRunning) {
     syncLocalLampCommand(now);

@@ -183,7 +183,7 @@ export function LandingScreen({ onGetStarted, darkMode = true, onToggleDarkMode 
 
               <div className="mt-3 flex items-center justify-center gap-1.5 py-2 bg-[#00d4ff]/5 border border-[#00d4ff]/20 rounded-lg">
                 <div className="w-1.5 h-1.5 rounded-full bg-[#00d4ff] animate-pulse shadow-[0_0_8px_#00d4ff]" />
-                <span className="text-[#00d4ff] text-[10px] font-medium" style={{ fontFamily: FONT }}>ESP32 Conectado via Wi-Fi</span>
+                <span className="text-[#00d4ff] text-[10px] font-medium" style={{ fontFamily: FONT }}>Compatibilidade com ESP32 via Wi-Fi</span>
               </div>
             </div>
           </div>

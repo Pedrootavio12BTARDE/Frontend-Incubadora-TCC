@@ -12,6 +12,7 @@ model User {
   email     String   @unique
   password  String
   name      String?
+  avatar    String?
   role      String   @default("operator")
   createdAt DateTime @default(now())
 }
@@ -53,4 +54,9 @@ model Production {
   brownEggs  Int      @default(0)
   lastColor  String?
   updatedAt  DateTime @updatedAt
+}
+model Device {
+  deviceId   String   @id
+  lastSeenAt DateTime @default(now())
+  createdAt  DateTime @default(now())
 }

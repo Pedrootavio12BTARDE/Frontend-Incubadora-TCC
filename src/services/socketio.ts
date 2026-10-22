@@ -17,6 +17,7 @@ class SocketIOService {
   private socket: Socket | null = null;
   private listeners: Map<string, Set<Function>> = new Map();
   private reconnectAttempts = 0;
+  private connectionPromise: Promise<void> | null = null;
   private maxReconnectAttempts = 5;
 
   /**
@@ -24,66 +25,58 @@ class SocketIOService {
    * Should be called once when app starts
    */
   connect(): Promise<void> {
-    return new Promise((resolve, reject) => {
-      if (this.socket?.connected) {
-        resolve();
-        return;
-      }
+    if (this.socket?.connected) return Promise.resolve();
+    if (this.connectionPromise) return this.connectionPromise;
 
-const socketURL = (
-  import.meta.env.VITE_BACKEND_URL ||
-  (import.meta.env.DEV ? 'http://localhost:3001' : window.location.origin)
-).replace(/\/+$/, '');
-      this.socket = io(socketURL, {
+    const socketURL = (
+      import.meta.env.VITE_BACKEND_URL ||
+      (import.meta.env.DEV ? "http://localhost:3001" : window.location.origin)
+    ).replace(/\/+$/, "");
+
+    this.connectionPromise = new Promise<void>((resolve, reject) => {
+      const socket = io(socketURL, {
         reconnection: true,
         reconnectionDelay: 1000,
         reconnectionDelayMax: 5000,
         reconnectionAttempts: this.maxReconnectAttempts,
-        transports: ['websocket', 'polling'],
+        transports: ["websocket", "polling"],
       });
+      this.socket = socket;
 
-      this.socket.on('connect', () => {
-        console.log('[Socket.io] Connected to backend');
+      socket.on("connect", () => {
+        console.log("[Socket.io] Connected to backend");
         this.reconnectAttempts = 0;
-        this.emit('connected', undefined);
+        this.connectionPromise = null;
+        this.emit("connected", undefined);
         resolve();
       });
 
-      this.socket.on('welcome', (data) => {
-        console.log('[Socket.io] Welcome message:', data);
-        this.emit('welcome', data);
+      socket.on("welcome", (data) => {
+        console.log("[Socket.io] Welcome message:", data);
+        this.emit("welcome", data);
+      });
+      socket.on("sensor:update", (data) => this.emit("sensor:update", data));
+      socket.on("actuator:update", (data) => this.emit("actuator:update", data));
+      socket.on("production:update", (data) => this.emit("production:update", data));
+      socket.on("device:update", (data) => this.emit("device:update", data));
+
+      socket.on("disconnect", () => {
+        console.log("[Socket.io] Disconnected from backend");
+        this.emit("disconnected", undefined);
       });
 
-      this.socket.on('sensor:update', (data) => {
-        console.log('[Socket.io] Sensor update:', data);
-        this.emit('sensor:update', data);
-      });
-
-      this.socket.on('actuator:update', (data) => {
-        console.log('[Socket.io] Actuator update:', data);
-        this.emit('actuator:update', data);
-      });
-
-      this.socket.on('production:update', (data) => {
-        console.log('[Socket.io] Production update:', data);
-        this.emit('production:update', data);
-      });
-
-      this.socket.on('disconnect', () => {
-        console.log('[Socket.io] Disconnected from backend');
-        this.emit('disconnected', undefined);
-      });
-
-      this.socket.on('connect_error', (error) => {
-        console.error('[Socket.io] Connection error:', error);
+      socket.on("connect_error", (error) => {
+        console.error("[Socket.io] Connection error:", error);
         this.reconnectAttempts++;
-        reject(error);
+        if (this.connectionPromise) {
+          this.connectionPromise = null;
+          reject(error);
+        }
       });
-
-      this.socket.on('error', (error) => {
-        console.error('[Socket.io] Error:', error);
-      });
+      socket.on("error", (error) => console.error("[Socket.io] Error:", error));
     });
+
+    return this.connectionPromise!;
   }
 
   /**
@@ -92,6 +85,7 @@ const socketURL = (
   disconnect(): void {
     if (this.socket?.connected) {
       this.socket.disconnect();
+      this.connectionPromise = null;
       console.log('[Socket.io] Disconnected');
     }
   }

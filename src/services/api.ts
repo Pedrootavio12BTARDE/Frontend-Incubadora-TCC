@@ -62,6 +62,15 @@ export async function sendContactMessage(data: { name: string; email: string; me
     throw new Error(typeof result.error === 'string' ? result.error : 'Nao foi possivel enviar sua mensagem. Tente novamente.');
   }
 }
+export interface DeviceStatus {
+  deviceId: string | null;
+  online: boolean;
+  lastSeenAt: string | null;
+}
+
+export async function getDeviceStatus(): Promise<DeviceStatus> {
+  return fetchAPI<DeviceStatus>('/devices/status');
+}
 // SENSOR ENDPOINTS
 // ============================================================================
 
@@ -301,14 +310,47 @@ export async function incrementProduction(
 // AUTHENTICATION ENDPOINTS
 // ============================================================================
 
+export interface AuthUser {
+  id: number;
+  email: string;
+  name: string | null;
+  avatar: string | null;
+  role: string;
+}
+
 export interface AuthResponse {
   token: string;
-  user: {
-    id: number;
-    email: string;
-    name: string | null;
-    role: string;
-  };
+  user: AuthUser;
+}
+
+const AUTH_USER_KEY = 'authUser';
+
+function saveAuthUser(user: AuthUser): void {
+  localStorage.setItem(AUTH_USER_KEY, JSON.stringify(user));
+}
+
+export function getStoredAuthUser(): AuthUser | null {
+  try {
+    const saved = localStorage.getItem(AUTH_USER_KEY);
+    return saved ? JSON.parse(saved) as AuthUser : null;
+  } catch {
+    return null;
+  }
+}
+
+export async function refreshProfile(): Promise<AuthUser> {
+  const response = await fetchAPI<{ user: AuthUser }>('/auth/profile');
+  saveAuthUser(response.user);
+  return response.user;
+}
+
+export async function updateProfile(profile: { name: string; avatar: string | null }): Promise<AuthUser> {
+  const response = await fetchAPI<{ user: AuthUser }>('/auth/profile', {
+    method: 'PATCH',
+    body: JSON.stringify(profile),
+  });
+  saveAuthUser(response.user);
+  return response.user;
 }
 
 /**
@@ -323,6 +365,7 @@ export async function login(email: string, password: string): Promise<AuthRespon
 
   // Store token in localStorage if successful
   localStorage.setItem('authToken', response.token);
+  saveAuthUser(response.user);
 
   return response;
 }
@@ -336,6 +379,7 @@ export async function register(
     body: JSON.stringify({ email, password }),
   });
   localStorage.setItem('authToken', response.token);
+  saveAuthUser(response.user);
   return response;
 }
 
@@ -351,6 +395,7 @@ export function getAuthToken(): string | null {
  */
 export function clearAuthToken(): void {
   localStorage.removeItem('authToken');
+  localStorage.removeItem(AUTH_USER_KEY);
 }
 
 /**

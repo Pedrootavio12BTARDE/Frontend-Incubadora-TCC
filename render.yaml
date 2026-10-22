@@ -20,3 +20,5 @@ services:
         sync: false
       - key: CONTACT_FROM_EMAIL
         sync: false
+      - key: ESP32_DEVICE_TOKEN
+        sync: false
