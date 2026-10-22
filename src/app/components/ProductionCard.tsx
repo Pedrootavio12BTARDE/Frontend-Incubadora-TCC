@@ -175,11 +175,7 @@ export function ProductionCard({
           </div>
 
           {/* Bottom Section: Espaços para escrever as quantidades */}
-          <div className={`w-full pt-2.5 border-t ${darkMode ? 'border-white/10' : 'border-[#001F3F]/10'}`}>
-            <p className={`text-[11px] font-bold mb-2 ${darkMode ? 'text-[#98FFD9]' : 'text-[#001F3F]/80'}`} style={{ fontFamily: 'Quicksand, sans-serif' }}>
-              Digite ou ajuste a quantidade por cor:
-            </p>
-
+          <div className={`w-full pt-2 border-t ${darkMode ? 'border-white/10' : 'border-[#001F3F]/10'}`}>
             <div className="grid grid-cols-2 gap-2.5">
               {/* Ovos Brancos */}
               <div className={`p-2 rounded-xl border transition-all ${
