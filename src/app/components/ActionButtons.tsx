@@ -28,8 +28,8 @@ export function ActionButtons({
     setIsRotatingRequest(true);
     setRotationMessage("");
     try {
-      await rotateMotor(3000);
-      setRotationMessage("Comando de rolagem enviado.");
+      await rotateMotor(1500);
+      setRotationMessage("Comando enviado: rolagem em andamento.");
     } catch (error) {
       console.error("Erro ao solicitar rolagem:", error);
       setRotationMessage("Não foi possível enviar o comando.");

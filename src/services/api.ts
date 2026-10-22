@@ -123,7 +123,7 @@ export async function setFan(state: 'on' | 'off' | 'auto'): Promise<{ success: b
   });
 }
 
-export async function rotateMotor(durationMs: number = 3000): Promise<{
+export async function rotateMotor(durationMs: number = 1500): Promise<{
   ok: boolean;
   command: { id: number; durationMs: number; status: string };
 }> {

@@ -12,19 +12,24 @@ const char* API_BASE_URL = "https://ecoincubadora-backend.onrender.com/api/v1";
 constexpr uint8_t DHT_PIN = 14;
 constexpr uint8_t SOIL_SENSOR_PIN = 35;
 constexpr uint8_t LAMP_RELAY_PIN = 26;
-constexpr uint8_t MOTOR_RELAY_PIN = 32;
+
+// Pinos de Controle da Ponte H L9110S (Substituem o relé do motor)
+constexpr uint8_t MOTOR_IN1_PIN = 23; // Ponte H B-1A
+constexpr uint8_t MOTOR_IN2_PIN = 19; // Ponte H B-1B
+
 constexpr uint8_t DHT_TYPE = DHT11;
 
-// Calibre lendo o ADC com o sensor seco e depois na umidade de referencia.
-// GPIO35 retorna normalmente valores entre 0 e 4095.
+// Calibração do Sensor de Solo (0 - 4095)
 constexpr int SOIL_DRY_RAW = 3200;
 constexpr int SOIL_WET_RAW = 1400;
 
 constexpr bool RELAY_ACTIVE_LOW = true;
-constexpr bool MOTOR_RELAY_ACTIVE_LOW = true;
 constexpr unsigned long SENSOR_INTERVAL_MS = 5000;
 constexpr unsigned long LAMP_POLL_INTERVAL_MS = 2000;
 constexpr unsigned long MOTOR_COMMAND_POLL_INTERVAL_MS = 1000;
+
+// Tempo ideal de rotação da esteira para evitar queda dos ovos (1.5 segundos)
+constexpr uint32_t DEFAULT_MOTOR_DURATION_MS = 1500;
 
 DHT dht(DHT_PIN, DHT_TYPE);
 WiFiClientSecure secureClient;
@@ -44,6 +49,8 @@ bool motorRunning = false;
 bool motorQueueInitialized = false;
 bool timeSyncStarted = false;
 bool clockWasSynchronized = false;
+bool rotateClockwise = true; // Alterna entre Sentido Horário e Anti-Horário
+
 uint32_t motorStopAt = 0;
 uint32_t currentMotorCommandId = 0;
 uint32_t lastProcessedMotorCommandId = 0;
@@ -54,14 +61,6 @@ int relayOnLevel() {
 
 int relayOffLevel() {
   return RELAY_ACTIVE_LOW ? HIGH : LOW;
-}
-
-int motorRelayOnLevel() {
-  return MOTOR_RELAY_ACTIVE_LOW ? LOW : HIGH;
-}
-
-int motorRelayOffLevel() {
-  return MOTOR_RELAY_ACTIVE_LOW ? HIGH : LOW;
 }
 
 String apiUrl(const String& path) {
@@ -84,15 +83,30 @@ void logHttpFailure(const char* operation, HTTPClient& http, int status) {
   char tlsError[128] = {};
   secureClient.lastError(tlsError, sizeof(tlsError));
   Serial.printf("%s falhou: HTTP %d (%s); TLS: %s\n",
-                operation,
-                status,
-                http.errorToString(status).c_str(),
-                tlsError);
+                operation, status, http.errorToString(status).c_str(), tlsError);
 }
 
 void applyLamp(bool on) {
   lampIsOn = on;
   digitalWrite(LAMP_RELAY_PIN, on ? relayOnLevel() : relayOffLevel());
+}
+
+// Funções de Controle de Rotação da Ponte H
+void stopMotor() {
+  digitalWrite(MOTOR_IN1_PIN, LOW);
+  digitalWrite(MOTOR_IN2_PIN, LOW);
+}
+
+void startMotor(bool clockwise) {
+  if (clockwise) {
+    // Giro para frente / Horário
+    digitalWrite(MOTOR_IN1_PIN, HIGH);
+    digitalWrite(MOTOR_IN2_PIN, LOW);
+  } else {
+    // Giro para trás / Anti-horário
+    digitalWrite(MOTOR_IN1_PIN, LOW);
+    digitalWrite(MOTOR_IN2_PIN, HIGH);
+  }
 }
 
 float readSoilHumidityPercent(int rawValue) {
@@ -170,7 +184,7 @@ void pollLampState() {
       const char* state = response["lamp"] | "off";
       const bool requestedLampState = strcmp(state, "on") == 0;
       applyLamp(requestedLampState);
-      Serial.printf("Estado recebido da API: lamp=%s; GPIO14=%s (%d)\n",
+      Serial.printf("Estado recebido da API: lamp=%s; GPIO26=%s (%d)\n",
                     state,
                     requestedLampState ? "ligado" : "desligado",
                     requestedLampState ? relayOnLevel() : relayOffLevel());
@@ -202,10 +216,15 @@ bool acknowledgeMotorCommand(uint32_t commandId) {
 }
 
 void finishMotorRotation() {
-  digitalWrite(MOTOR_RELAY_PIN, motorRelayOffLevel());
+  stopMotor(); // Para a Ponte H
   motorRunning = false;
-  Serial.printf("Motor desligado; comando %lu concluido.\n",
-                static_cast<unsigned long>(currentMotorCommandId));
+  
+  // Inverte o sentido para a próxima rolagem de ovos
+  rotateClockwise = !rotateClockwise; 
+  
+  Serial.printf("Motor desligado (Ponte H); comando %lu concluido. Proximo sentido: %s\n",
+                static_cast<unsigned long>(currentMotorCommandId),
+                rotateClockwise ? "Frente (IN1)" : "Trás (IN2)");
 
   if (currentMotorCommandId != 0 && acknowledgeMotorCommand(currentMotorCommandId)) {
     currentMotorCommandId = 0;
@@ -278,18 +297,22 @@ void pollMotorCommands() {
       continue;
     }
 
-    uint32_t durationMs = command["durationMs"] | 3000;
-    durationMs = constrain(durationMs, 100U, 10000U);
+    // Se o backend não definir o tempo, usa o padrão seguro de 1500 ms (1.5s)
+    uint32_t durationMs = command["durationMs"] | DEFAULT_MOTOR_DURATION_MS;
+    durationMs = constrain(durationMs, 500U, 4000U);
 
     lastProcessedMotorCommandId = commandId;
     currentMotorCommandId = commandId;
     motorStopAt = millis() + durationMs;
     motorRunning = true;
-    digitalWrite(MOTOR_RELAY_PIN, motorRelayOnLevel());
-    Serial.printf("Motor ligado por %lu ms; comando %lu; GPIO23=%d\n",
+    
+    // Aciona a Ponte H no sentido atual
+    startMotor(rotateClockwise);
+    
+    Serial.printf("Motor Ponte H ligado por %lu ms no sentido: %s; comando %lu\n",
                   static_cast<unsigned long>(durationMs),
-                  static_cast<unsigned long>(commandId),
-                  motorRelayOnLevel());
+                  rotateClockwise ? "Frente" : "Trás",
+                  static_cast<unsigned long>(commandId));
     break;
   }
 }
@@ -303,8 +326,8 @@ void postSensorReadings() {
   const float soilHumidity = readSoilHumidityPercent(soilRaw);
 
   StaticJsonDocument<160> readings;
-  if (isfinite(temperature)) readings["temperature"] = temperature;
-  if (isfinite(humidity)) readings["humidity"] = humidity;
+  if (isfinite(temperature) && temperature > 0) readings["temperature"] = temperature;
+  if (isfinite(humidity) && humidity > 0) readings["humidity"] = humidity;
   if (isfinite(soilHumidity)) readings["soilHumidity"] = soilHumidity;
 
   if (readings.size() == 0) {
@@ -330,10 +353,14 @@ void postSensorReadings() {
 void setup() {
   Serial.begin(115200);
 
+  // Configuração do Relé da Lâmpada
   pinMode(LAMP_RELAY_PIN, OUTPUT);
   digitalWrite(LAMP_RELAY_PIN, relayOffLevel());
-  pinMode(MOTOR_RELAY_PIN, OUTPUT);
-  digitalWrite(MOTOR_RELAY_PIN, motorRelayOffLevel());
+
+  // Configuração da Ponte H (L9110S)
+  pinMode(MOTOR_IN1_PIN, OUTPUT);
+  pinMode(MOTOR_IN2_PIN, OUTPUT);
+  stopMotor();
 
   analogReadResolution(12);
   dht.begin();
@@ -388,4 +415,6 @@ void loop() {
     lastLampPoll = now;
     pollLampState();
   }
+}
+
 }
