@@ -50,6 +50,18 @@ async function fetchAPI<T>(
 }
 
 // ============================================================================
+export async function sendContactMessage(data: { name: string; email: string; message: string }): Promise<void> {
+  const response = await fetch(`${API_BASE_URL}/contact`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+  });
+
+  if (!response.ok) {
+    const result = await response.json().catch(() => ({}));
+    throw new Error(typeof result.error === 'string' ? result.error : 'Nao foi possivel enviar sua mensagem. Tente novamente.');
+  }
+}
 // SENSOR ENDPOINTS
 // ============================================================================
 

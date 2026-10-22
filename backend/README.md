@@ -64,3 +64,7 @@ cd backend
 npm run prisma:migrate:deploy
 npm run prisma:generate
 ```
+
+## Formulario de contato
+
+O endpoint `POST /api/v1/contact` envia mensagens para `devmindsti@gmail.com` pelo Resend. Configure `RESEND_API_KEY` e `CONTACT_FROM_EMAIL` no backend. O dominio remetente precisa ser verificado no Resend; veja `RENDER_DEPLOY.md`. O e-mail informado sera usado para resposta. O endpoint limita envios por IP.

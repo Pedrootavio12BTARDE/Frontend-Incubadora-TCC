@@ -38,3 +38,11 @@ As rotas de sensor e atuadores estão públicas para esta apresentação. Qualqu
 ## Migrações
 
 O serviço executa `prisma migrate deploy` com o schema PostgreSQL antes de iniciar. As migrações SQLite de desenvolvimento permanecem separadas em `prisma/migrations`; o Render usa `prisma-render/migrations`.
+## Formulario Fale Conosco
+
+O formulario envia nome, e-mail e mensagem para `devmindsti@gmail.com`. Para habilitar o envio, crie uma chave de API no Resend, verifique um dominio remetente e configure estas variaveis do backend no Render:
+
+- `RESEND_API_KEY`: a chave secreta da API Resend.
+- `CONTACT_FROM_EMAIL`: remetente verificado, como `EcoIncubadora <contato@seudominio.com>`.
+
+Mantenha a chave no backend, fora do repositorio. O e-mail informado sera usado como `Reply-To`. Sem essas variaveis, o formulario informa que o envio esta temporariamente indisponivel.

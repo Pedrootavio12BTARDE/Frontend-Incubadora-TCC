@@ -1,5 +1,6 @@
 import { Instagram, Linkedin, Mail, Send } from "lucide-react";
 import { useState } from "react";
+import { sendContactMessage } from "../../services/api";
 
 interface AboutScreenProps {
   darkMode?: boolean;
@@ -8,7 +9,10 @@ interface AboutScreenProps {
 
 export function AboutScreen({ darkMode = false, isDesktop = false }: AboutScreenProps) {
   const [name, setName] = useState("");
+  const [email, setEmail] = useState("");
   const [message, setMessage] = useState("");
+  const [sending, setSending] = useState(false);
+  const [feedback, setFeedback] = useState<{ type: "success" | "error"; text: string } | null>(null);
 
   const team = [
     {
@@ -73,11 +77,21 @@ export function AboutScreen({ darkMode = false, isDesktop = false }: AboutScreen
     },
   ];
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    console.log("Contato enviado:", { name, message });
-    setName("");
-    setMessage("");
+    setSending(true);
+    setFeedback(null);
+    try {
+      await sendContactMessage({ name, email, message });
+      setFeedback({ type: "success", text: "Mensagem enviada! Entraremos em contato pelo e-mail informado." });
+      setName("");
+      setEmail("");
+      setMessage("");
+    } catch (error) {
+      setFeedback({ type: "error", text: error instanceof Error ? error.message : "Nao foi possivel enviar. Tente novamente." });
+    } finally {
+      setSending(false);
+    }
   };
 
   return (
@@ -227,6 +241,30 @@ export function AboutScreen({ darkMode = false, isDesktop = false }: AboutScreen
                 />
               </div>
 
+              {/* E-mail para resposta */}
+              <div>
+                <label
+                  className={`block text-sm mb-1.5 transition-colors duration-300 ${darkMode ? 'text-white' : 'text-[#001F3F]'}`}
+                  style={{ fontFamily: 'Quicksand, sans-serif', fontWeight: 600 }}
+                >
+                  Seu e-mail
+                </label>
+                <input
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  placeholder="voce@exemplo.com"
+                  autoComplete="email"
+                  maxLength={254}
+                  required
+                  className={`w-full backdrop-blur-sm border-2 border-[#98FFD9]/40 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-[#98FFD9] transition-all duration-300 ${
+                    darkMode
+                      ? 'bg-[#1a1f35]/60 text-white placeholder:text-white/40'
+                      : 'bg-white/60 text-[#001F3F] placeholder:text-[#001F3F]/40'
+                  }`}
+                  style={{ fontFamily: 'Quicksand, sans-serif', fontWeight: 500 }}
+                />
+              </div>
               {/* Textarea Mensagem */}
               <div>
                 <label
@@ -240,6 +278,7 @@ export function AboutScreen({ darkMode = false, isDesktop = false }: AboutScreen
                   onChange={(e) => setMessage(e.target.value)}
                   placeholder="Digite sua mensagem..."
                   required
+                  maxLength={5000}
                   rows={4}
                   className={`w-full backdrop-blur-sm border-2 border-[#98FFD9]/40 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-[#98FFD9] transition-all duration-300 resize-none ${
                     darkMode
@@ -250,9 +289,19 @@ export function AboutScreen({ darkMode = false, isDesktop = false }: AboutScreen
                 />
               </div>
 
+              {feedback && (
+                <p
+                  role="status"
+                  aria-live="polite"
+                  className={`text-sm ${feedback.type === "success" ? "text-emerald-600" : "text-red-500"}`}
+                >
+                  {feedback.text}
+                </p>
+              )}
               {/* Botão Enviar */}
               <button
                 type="submit"
+                disabled={sending}
                 className="w-full relative bg-[#98FFD9] text-[#001F3F] py-3 rounded-xl shadow-[0_8px_24px_rgba(152,255,217,0.4)] hover:shadow-[0_12px_32px_rgba(152,255,217,0.5)] transition-all duration-300 flex items-center justify-center gap-2 overflow-hidden group hover:bg-[#6EDDC4]"
               >
                 <Send className="relative w-4 h-4" strokeWidth={2.5} />
@@ -260,7 +309,7 @@ export function AboutScreen({ darkMode = false, isDesktop = false }: AboutScreen
                   className="relative text-sm tracking-wide"
                   style={{ fontFamily: 'Quicksand, sans-serif', fontWeight: 800 }}
                 >
-                  ENVIAR
+                  {sending ? "ENVIANDO..." : "ENVIAR"}
                 </span>
               </button>
             </form>
