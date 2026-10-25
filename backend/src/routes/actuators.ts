@@ -24,6 +24,7 @@
  */
 
 import { Router } from 'express';
+import { timingSafeEqual } from 'node:crypto';
 import prisma from '../lib/prisma';
 import { requireAuth } from '../middleware/requireAuth';
 
@@ -52,16 +53,54 @@ router.get('/status', async (req, res) => {
       where: { actuator: 'fan' }, 
       orderBy: { createdAt: 'desc' } 
     });
+    const coolerLog = await prisma.actuatorLog.findFirst({
+      where: { actuator: 'cooler' },
+      orderBy: { createdAt: 'desc' },
+    });
     
     res.json({ 
       lamp: lampLog?.action || 'unknown', 
-      fan: fanLog?.action || 'unknown' 
+      fan: fanLog?.action || 'unknown',
+      cooler: coolerLog?.action || 'unknown'
     });
   } catch (err) {
     res.status(500).json({ error: 'failed to get actuators status' });
   }
 });
 
+router.post('/cooler/report', async (req, res) => {
+  const configuredToken = process.env.ESP32_DEVICE_TOKEN;
+  const providedToken = req.header('x-device-token');
+  if (!configuredToken || configuredToken.length < 32) {
+    return res.status(503).json({ error: 'device authentication is not configured' });
+  }
+  if (!providedToken) return res.status(401).json({ error: 'invalid device token' });
+  const received = Buffer.from(providedToken);
+  const expected = Buffer.from(configuredToken);
+  if (received.length !== expected.length || !timingSafeEqual(received, expected)) {
+    return res.status(401).json({ error: 'invalid device token' });
+  }
+  if (typeof req.body?.on !== 'boolean') {
+    return res.status(400).json({ error: 'on must be a boolean' });
+  }
+
+  try {
+    const action = req.body.on ? 'on' : 'off';
+    const previous = await prisma.actuatorLog.findFirst({
+      where: { actuator: 'cooler' },
+      orderBy: { createdAt: 'desc' },
+    });
+    if (previous?.action !== action) {
+      const created = await prisma.actuatorLog.create({
+        data: { actuator: 'cooler', action, payload: JSON.stringify({ on: req.body.on }) },
+      });
+      req.app.get('io')?.emit('actuator:update', { actuator: 'cooler', action, timestamp: created.createdAt.toISOString() });
+    }
+    res.json({ ok: true, cooler: action });
+  } catch (err) {
+    res.status(500).json({ error: 'failed to report cooler state' });
+  }
+});
 router.get('/state', async (_req, res) => {
   try {
     const lampLog = await prisma.actuatorLog.findFirst({
@@ -75,10 +114,10 @@ router.get('/state', async (_req, res) => {
   }
 });
 
-router.get('/commands/pending', async (_req, res) => {
+router.get('/commands/pending', async (req, res) => {
   try {
     const commands = await prisma.actuatorCommand.findMany({
-      where: { status: 'pending' },
+      where: { status: 'pending', ...(typeof req.query.actuator === 'string' ? { actuator: req.query.actuator } : {}) },
       orderBy: { createdAt: 'asc' },
       take: 20,
     });

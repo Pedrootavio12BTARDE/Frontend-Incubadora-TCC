@@ -19,6 +19,8 @@
 import express from 'express';
 import http from 'http';
 import { Server as IOServer } from 'socket.io';
+import jwt from 'jsonwebtoken';
+import prisma from './lib/prisma';
 import cors from 'cors';
 import dotenv from 'dotenv';
 import routes from './routes';
@@ -81,11 +83,47 @@ app.use('/api/v1', routes);
 // ====================================================================
 
 // Escuta nova conexão WebSocket
+io.use((socket, next) => {
+  const token = socket.handshake.auth?.token;
+  if (!token) return next();
+  const secret = process.env.JWT_SECRET || (process.env.NODE_ENV === 'production' ? '' : 'dev');
+  if (!secret) return next(new Error('authentication is not configured'));
+  try {
+    const payload = jwt.verify(String(token), secret) as jwt.JwtPayload;
+    if (typeof payload.userId !== 'number') return next(new Error('invalid token payload'));
+    socket.data.authUserId = payload.userId;
+    return next();
+  } catch {
+    return next(new Error('invalid or expired authentication token'));
+  }
+});
 io.on('connection', (socket) => {
   console.log('socket connected', socket.id);
   
   // Envia mensagem de boas-vindas ao cliente que se conectou
   socket.emit('welcome', { msg: 'connected to EcoIncubadora backend' });
+
+  socket.on('toggle_cooler', async (payload: { on?: unknown }, acknowledge?: (result: Record<string, unknown>) => void) => {
+    const respond = typeof acknowledge === 'function' ? acknowledge : () => undefined;
+    if (typeof socket.data.authUserId !== 'number') {
+      respond({ ok: false, error: 'authentication required' });
+      return;
+    }
+    if (typeof payload?.on !== 'boolean') {
+      respond({ ok: false, error: 'on must be a boolean' });
+      return;
+    }
+
+    try {
+      const command = await prisma.actuatorCommand.create({
+        data: { actuator: 'cooler', action: payload.on ? 'on' : 'off', durationMs: 0 },
+      });
+      respond({ ok: true, commandId: command.id, on: payload.on });
+    } catch (error) {
+      console.error('Failed to queue cooler command:', error);
+      respond({ ok: false, error: 'failed to queue cooler command' });
+    }
+  });
   
   // Eventos que backend emite para frontend:
   // - sensor:update: nova leitura de temperatura/umidade/ovos

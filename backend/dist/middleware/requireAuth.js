@@ -18,7 +18,10 @@ const requireAuth = (req, res, next) => {
         return res.status(503).json({ error: 'authentication is not configured' });
     }
     try {
-        jsonwebtoken_1.default.verify(token, secret);
+        const payload = jsonwebtoken_1.default.verify(token, secret);
+        if (typeof payload.userId !== 'number')
+            return res.status(401).json({ error: 'invalid token payload' });
+        res.locals.authUserId = payload.userId;
         next();
     }
     catch {

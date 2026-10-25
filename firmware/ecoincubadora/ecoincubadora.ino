@@ -7,7 +7,7 @@
 #include <time.h>
 #include <freertos/FreeRTOS.h>
 #include <freertos/task.h>
-#include <freertos/semphr.h
+#include <freertos/semphr.h>
 #include "secrets.h"
 #ifndef DEVICE_API_TOKEN
 #define DEVICE_API_TOKEN ""
@@ -18,6 +18,7 @@ const char* API_BASE_URL = "https://ecoincubadora-backend.onrender.com/api/v1";
 constexpr uint8_t DHT_PIN = 14;
 constexpr uint8_t SOIL_SENSOR_PIN = 35;
 constexpr uint8_t LAMP_RELAY_PIN = 26;
+constexpr uint8_t COOLER_RELAY_PIN = 25;
 
 // Pinos de Controle da Ponte H L9110S (Substituem o relé do motor)
 constexpr uint8_t MOTOR_IN1_PIN = 23; // Ponte H B-1A
@@ -30,9 +31,12 @@ constexpr int SOIL_DRY_RAW = 3200;
 constexpr int SOIL_WET_RAW = 1400;
 
 constexpr bool RELAY_ACTIVE_LOW = true;
+constexpr bool COOLER_RELAY_ACTIVE_LOW = true;
 constexpr unsigned long SENSOR_INTERVAL_MS = 5000;
 constexpr unsigned long DEVICE_HEARTBEAT_INTERVAL_MS = 15000;
 constexpr unsigned long LAMP_POLL_INTERVAL_MS = 2000;
+constexpr unsigned long COOLER_COMMAND_POLL_INTERVAL_MS = 1000;
+constexpr unsigned long COOLER_REPORT_RETRY_INTERVAL_MS = 5000;
 constexpr unsigned long THERMAL_CHECK_INTERVAL_MS = 1000;
 constexpr float OVERHEAT_LIMIT_C = 39.5f;
 constexpr float THERMAL_SAFE_LIMIT_C = 37.5f;
@@ -47,10 +51,13 @@ constexpr uint32_t DEFAULT_MOTOR_DURATION_MS = 1500;
 DHT dht(DHT_PIN, DHT_TYPE);
 WiFiClientSecure secureClient;
 StaticJsonDocument<4096> motorCommandResponse;
+StaticJsonDocument<4096> coolerCommandResponse;
 
 unsigned long lastSensorPost = 0;
 unsigned long lastDeviceHeartbeat = 0;
 unsigned long lastLampPoll = 0;
+unsigned long lastCoolerCommandPoll = 0;
+unsigned long lastCoolerReportAt = 0;
 unsigned long lastLampSync = 0;
 unsigned long lastWifiDiagnostic = 0;
 unsigned long lastMotorCommandPoll = 0;
@@ -60,6 +67,8 @@ unsigned long lastAutoRollAt = 0;
 bool wifiStarted = false;
 bool wifiWasConnected = false;
 volatile bool lampIsOn = false;
+bool coolerIsOn = false;
+bool coolerNeedsReport = true;
 volatile bool lampNeedsSync = false;
 volatile bool thermalProtectionActive = false;
 bool thermalSafetyNeedsSync = false;
@@ -84,6 +93,18 @@ uint32_t motorStopAt = 0;
 uint32_t currentMotorCommandId = 0;
 uint32_t lastProcessedMotorCommandId = 0;
 
+int coolerRelayOnLevel() {
+  return COOLER_RELAY_ACTIVE_LOW ? LOW : HIGH;
+}
+
+int coolerRelayOffLevel() {
+  return COOLER_RELAY_ACTIVE_LOW ? HIGH : LOW;
+}
+
+void applyCooler(bool on) {
+  coolerIsOn = on;
+  digitalWrite(COOLER_RELAY_PIN, on ? coolerRelayOnLevel() : coolerRelayOffLevel());
+}
 int relayOnLevel() {
   return RELAY_ACTIVE_LOW ? LOW : HIGH;
 }
@@ -326,7 +347,7 @@ void pollMotorMode(unsigned long now) {
   }
   http.end();
 }
-bool acknowledgeMotorCommand(uint32_t commandId) {
+bool acknowledgeActuatorCommand(uint32_t commandId) {
   if (WiFi.status() != WL_CONNECTED) return false;
 
   HTTPClient http;
@@ -335,13 +356,71 @@ bool acknowledgeMotorCommand(uint32_t commandId) {
 
   http.addHeader("Content-Type", "application/json");
   const int status = http.sendRequest("PATCH", "{}");
-  logHttpFailure("Confirmacao do comando do motor", http, status);
+  logHttpFailure("Confirmacao do comando do atuador", http, status);
   http.end();
-  Serial.printf("Confirmacao do comando do motor %lu: HTTP %d\n",
+  Serial.printf("Confirmacao do comando do atuador %lu: HTTP %d\n",
                 static_cast<unsigned long>(commandId), status);
   return status >= 200 && status < 300;
 }
 
+bool reportCoolerState(bool on) {
+  if (WiFi.status() != WL_CONNECTED) return false;
+
+  HTTPClient http;
+  if (!beginRequest(http, "/actuators/cooler/report")) return false;
+
+  StaticJsonDocument<32> request;
+  request["on"] = on;
+  String body;
+  serializeJson(request, body);
+  http.addHeader("Content-Type", "application/json");
+  http.addHeader("x-device-token", DEVICE_API_TOKEN);
+  const int status = http.POST(body);
+  logHttpFailure("Status real do cooler", http, status);
+  http.end();
+  if (status < 200 || status >= 300) {
+    Serial.printf("Confirmação do cooler falhou: HTTP %d\n", status);
+    return false;
+  }
+  Serial.printf("Estado real do cooler confirmado: %s\n", on ? "LIGADO" : "DESLIGADO");
+  return true;
+}
+
+void pollCoolerCommands() {
+  if (WiFi.status() != WL_CONNECTED) return;
+
+  HTTPClient http;
+  if (!beginRequest(http, "/actuators/commands/pending?actuator=cooler")) return;
+  const int status = http.GET();
+  if (status != HTTP_CODE_OK) {
+    logHttpFailure("Consulta dos comandos do cooler", http, status);
+    http.end();
+    return;
+  }
+
+  coolerCommandResponse.clear();
+  const DeserializationError error = deserializeJson(coolerCommandResponse, http.getString());
+  http.end();
+  if (error) {
+    Serial.printf("JSON invalido na fila do cooler: %s\n", error.c_str());
+    return;
+  }
+
+  JsonArray commands = coolerCommandResponse["commands"].as<JsonArray>();
+  for (JsonObject command : commands) {
+    const uint32_t commandId = command["id"] | 0;
+    const char* action = command["action"] | "";
+    if (commandId == 0 || (strcmp(action, "on") != 0 && strcmp(action, "off") != 0)) continue;
+
+    const bool requestedState = strcmp(action, "on") == 0;
+    applyCooler(requestedState);
+    if (reportCoolerState(requestedState) && acknowledgeActuatorCommand(commandId)) {
+      Serial.printf("Comando %lu do cooler confirmado: %s (GPIO25)\n",
+                    static_cast<unsigned long>(commandId), requestedState ? "LIGADO" : "DESLIGADO");
+    }
+    return;
+  }
+}
 void finishMotorRotation() {
   stopMotor(); // Para a Ponte H
   motorRunning = false;
@@ -354,7 +433,7 @@ void finishMotorRotation() {
                 rotateClockwise ? "Frente (IN1)" : "Trás (IN2)");
 
   if (currentMotorCommandId != 0 && autoModeEnabled) lastAutoRollAt = millis();
-  if (currentMotorCommandId != 0 && acknowledgeMotorCommand(currentMotorCommandId)) {
+  if (currentMotorCommandId != 0 && acknowledgeActuatorCommand(currentMotorCommandId)) {
     currentMotorCommandId = 0;
   }
 }
@@ -378,7 +457,7 @@ void pollMotorCommands() {
   if (WiFi.status() != WL_CONNECTED || motorRunning) return;
 
   HTTPClient http;
-  if (!beginRequest(http, "/actuators/commands/pending")) return;
+  if (!beginRequest(http, "/actuators/commands/pending?actuator=motor")) return;
 
   const int status = http.GET();
   if (status != HTTP_CODE_OK) {
@@ -411,7 +490,7 @@ void pollMotorCommands() {
       }
 
       if (commandId > highestExistingCommandId) highestExistingCommandId = commandId;
-      if (acknowledgeMotorCommand(commandId)) discardedCommands++;
+      if (acknowledgeActuatorCommand(commandId)) discardedCommands++;
     }
 
     lastProcessedMotorCommandId = highestExistingCommandId;
@@ -430,7 +509,7 @@ void pollMotorCommands() {
     }
 
     if (commandId <= lastProcessedMotorCommandId) {
-      acknowledgeMotorCommand(commandId);
+      acknowledgeActuatorCommand(commandId);
       continue;
     }
 
@@ -541,6 +620,10 @@ void postSensorReadings() {
 void setup() {
   Serial.begin(115200);
 
+  digitalWrite(COOLER_RELAY_PIN, coolerRelayOffLevel());
+  pinMode(COOLER_RELAY_PIN, OUTPUT);
+  applyCooler(false);
+
   // Configuração do Relé da Lâmpada
   pinMode(LAMP_RELAY_PIN, OUTPUT);
   digitalWrite(LAMP_RELAY_PIN, relayOffLevel());
@@ -602,6 +685,16 @@ void loop() {
   if (lastDeviceHeartbeat == 0 || now - lastDeviceHeartbeat >= DEVICE_HEARTBEAT_INTERVAL_MS) {
     lastDeviceHeartbeat = now;
     sendDeviceHeartbeat();
+  }
+
+  if (coolerNeedsReport && now - lastCoolerReportAt >= COOLER_REPORT_RETRY_INTERVAL_MS) {
+    lastCoolerReportAt = now;
+    if (reportCoolerState(coolerIsOn)) coolerNeedsReport = false;
+  }
+
+  if (now - lastCoolerCommandPoll >= COOLER_COMMAND_POLL_INTERVAL_MS) {
+    lastCoolerCommandPoll = now;
+    pollCoolerCommands();
   }
 
   if (now - lastMotorModePoll >= MOTOR_MODE_POLL_INTERVAL_MS) {

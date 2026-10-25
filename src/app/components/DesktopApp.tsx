@@ -13,10 +13,11 @@ import { GameLandingScreen } from "./GameLandingScreen";
 import { LoginScreen } from "./LoginScreen";
 import { clearAuthToken, getAuthToken, getStoredAuthUser, refreshProfile, type AuthUser } from "../../services/api";
 import { ProfileMenu } from "./ProfileMenu";
+import { socketService } from "../../services/socketio";
 import { DeviceStatusCard } from "./DeviceStatusCard";
 import {
   Home, Gamepad2, Package, BarChart3, Users, BookOpen, Leaf,
-  LogIn, LogOut, Moon, Sun, Menu, X, ChevronRight,
+  FileText, LogIn, LogOut, Moon, Sun, Menu, X, ChevronRight,
 } from "lucide-react";
 import logoImg from "../../imports/logo_cerebro.png";
 
@@ -29,7 +30,7 @@ const navItems: { id: Screen; label: string; Icon: typeof Home }[] = [
   { id: "instructions", label: "Manual",           Icon: BookOpen },
   { id: "product",      label: "Produtos",         Icon: Package },
   { id: "about",        label: "Equipe",           Icon: Users },
-  { id: "references",   label: "Referências",      Icon: BookOpen },
+  { id: "references",   label: "Referências",      Icon: FileText },
   { id: "reports",      label: "Relatórios",       Icon: BarChart3 },
   { id: "fertilizer",   label: "Sustentabilidade", Icon: Leaf },
   { id: "game",         label: "Jogo",             Icon: Gamepad2 },
@@ -60,6 +61,7 @@ export function DesktopApp() {
 
   const handleLogout = () => {
     clearAuthToken();
+    void socketService.refreshAuthentication().catch((error) => console.error("Erro ao atualizar autenticação do Socket.io:", error));
     setIsAuthenticated(false);
     setUser(null);
     setCurrentScreen("dashboard");
@@ -99,7 +101,7 @@ export function DesktopApp() {
       {/* ── MOBILE TOP BAR ── */}
       {!isLoginScreen && (
         <header
-          className={`lg:hidden z-50 flex items-center justify-between px-4 py-3 border-b shrink-0 ${
+          className={`lg:hidden z-50 grid grid-cols-[2.25rem_minmax(0,1fr)_2.25rem] items-center gap-2 px-4 py-3 border-b shrink-0 ${
             dm ? "bg-[#0a1628]/90 border-[#98FFD9]/10 backdrop-blur-xl" : "bg-white/80 border-black/10 backdrop-blur-xl"
           }`}
         >
@@ -112,10 +114,10 @@ export function DesktopApp() {
             <Menu className="w-5 h-5" strokeWidth={2.5} />
           </button>
 
-          <div className="flex items-center gap-2">
-            <img src={logoImg} alt="Logo" className="w-9 h-9 object-contain" />
+          <div className="flex min-w-0 items-center justify-center gap-1.5">
+            <img src={logoImg} alt="Logo" className="h-8 w-8 shrink-0 object-contain sm:h-9 sm:w-9" />
             <span
-              className={`text-base font-black ${dm ? "text-white" : "text-[#001F3F]"}`}
+              className={`truncate text-sm font-black sm:text-base ${dm ? "text-white" : "text-[#001F3F]"}`}
               style={{ fontFamily: "Quicksand, sans-serif" }}
             >
               EcoIncubadora
@@ -237,6 +239,7 @@ export function DesktopApp() {
               onToggleDarkMode={() => setDarkMode(d => !d)}
               onLoginSuccess={(loggedInUser) => {
                 setIsAuthenticated(true);
+                void socketService.refreshAuthentication().catch((error) => console.error("Erro ao atualizar autenticação do Socket.io:", error));
                 setUser(loggedInUser);
                 navigate("dashboard");
               }}

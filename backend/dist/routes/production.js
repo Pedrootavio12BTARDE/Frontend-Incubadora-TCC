@@ -140,4 +140,37 @@ router.post('/increment', requireAuth_1.requireAuth, async (req, res) => {
         res.status(500).json({ error: 'failed to increment production' });
     }
 });
+/**
+ * POST /api/v1/production/set
+ *
+ * Permite definir diretamente a quantidade de ovos brancos e marrons
+ */
+router.post('/set', async (req, res) => {
+    try {
+        const whiteEggs = req.body?.whiteEggs !== undefined ? Math.max(0, Number(req.body.whiteEggs)) : 0;
+        const brownEggs = req.body?.brownEggs !== undefined ? Math.max(0, Number(req.body.brownEggs)) : 0;
+        const total = whiteEggs + brownEggs;
+        const lastColor = req.body?.lastColor || (whiteEggs > 0 ? 'Branco' : 'Marrom');
+        let prod = await prisma_1.default.production.findFirst();
+        if (!prod)
+            prod = await prisma_1.default.production.create({ data: {} });
+        const updated = await prisma_1.default.production.update({
+            where: { id: prod.id },
+            data: {
+                eggs: total,
+                whiteEggs,
+                brownEggs,
+                lastColor,
+            },
+        });
+        const response = toProductionResponse(updated);
+        const io = req.app.get('io');
+        if (io)
+            io.emit('production:update', response);
+        res.json(response);
+    }
+    catch (err) {
+        res.status(500).json({ error: 'failed to set production' });
+    }
+});
 exports.default = router;

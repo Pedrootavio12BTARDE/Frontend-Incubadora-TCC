@@ -122,7 +122,8 @@ export async function sendSensorData(data: SensorReading): Promise<SensorReading
 
 export interface ActuatorStatus {
   lamp?: boolean | 'on' | 'off' | 'unknown';
-  fan?: 'on' | 'off' | 'auto';
+  fan?: 'on' | 'off' | 'auto' | 'unknown';
+  cooler?: 'on' | 'off' | 'unknown';
   lastUpdated?: string;
 }
 

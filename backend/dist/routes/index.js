@@ -30,6 +30,8 @@ const actuators_1 = __importDefault(require("./actuators"));
 const production_1 = __importDefault(require("./production"));
 const auth_1 = __importDefault(require("./auth"));
 const reports_1 = __importDefault(require("./reports"));
+const contact_1 = __importDefault(require("./contact"));
+const devices_1 = __importDefault(require("./devices"));
 // Cria o router principal
 const router = (0, express_1.Router)();
 // ====================================================================
@@ -57,6 +59,8 @@ router.use('/auth', auth_1.default);
 //   POST /api/v1/auth/login → login e obter JWT token
 // Endpoints de Relatórios e Histórico
 router.use('/reports', reports_1.default);
+router.use('/contact', contact_1.default);
+router.use('/devices', devices_1.default);
 // Exemplos:
 //   GET /api/v1/reports/history → dados dos últimos N sensores
 // ====================================================================

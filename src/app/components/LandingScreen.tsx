@@ -49,12 +49,12 @@ export function LandingScreen({ onGetStarted, darkMode = true, onToggleDarkMode 
 
       {/* ─── NAVBAR ─── */}
       <nav className={`relative z-20 border-b ${navBg} backdrop-blur-2xl shrink-0 sticky top-0 transition-colors duration-300`}>
-        <div className="w-full px-5 py-3.5 flex items-center justify-between gap-3">
+        <div className="w-full px-3 sm:px-5 py-3.5 flex items-center justify-between gap-2">
 
           {/* Brand */}
-          <div className="flex items-center gap-2 shrink-0">
+          <div className="flex min-w-0 flex-1 items-center gap-2">
             <div className="w-2 h-2 rounded-full bg-[#00d4ff] shadow-[0_0_10px_#00d4ff]" />
-            <span className={`text-sm font-bold tracking-tight ${brand}`} style={{ fontFamily: FONT }}>
+            <span className={`truncate text-xs sm:text-sm font-bold tracking-tight ${brand}`} style={{ fontFamily: FONT }}>
               EcoIncubadora <span className="text-[#00d4ff]">IoT</span>
             </span>
           </div>
@@ -67,7 +67,7 @@ export function LandingScreen({ onGetStarted, darkMode = true, onToggleDarkMode 
           </div>
 
           {/* Right: toggle + CTA */}
-          <div className="flex items-center gap-2 shrink-0">
+          <div className="flex shrink-0 items-center gap-1.5 sm:gap-2">
             {onToggleDarkMode && (
               <button
                 onClick={onToggleDarkMode}
@@ -83,7 +83,7 @@ export function LandingScreen({ onGetStarted, darkMode = true, onToggleDarkMode 
             )}
             <button
               onClick={onGetStarted}
-              className="bg-[#00d4ff] hover:bg-[#00bfeb] text-[#0a1628] px-3.5 py-1.5 rounded-lg font-bold text-[11px] tracking-widest uppercase shadow-[0_0_18px_rgba(0,212,255,0.35)] transition-all duration-300"
+              className="bg-[#00d4ff] hover:bg-[#00bfeb] text-[#0a1628] shrink-0 px-2.5 sm:px-3.5 py-1.5 rounded-lg font-bold text-[10px] sm:text-[11px] tracking-[0.08em] sm:tracking-widest uppercase shadow-[0_0_18px_rgba(0,212,255,0.35)] transition-all duration-300"
               style={{ fontFamily: FONT }}
             >
               Acessar Painel

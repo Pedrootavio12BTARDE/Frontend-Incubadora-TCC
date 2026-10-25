@@ -1,7 +1,8 @@
-import { Thermometer, Droplet, Lightbulb, Wifi, WifiOff, AlertTriangle } from "lucide-react";
+import { Thermometer, Droplet, Lightbulb, Wifi, WifiOff, AlertTriangle, Wind } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useSocket } from "../../hooks/useSocket";
 import { setLamp, getActuatorStatus, getLatestSensorReading, getThermalSafetyStatus, type SensorReading } from "../../services/api";
+import { socketService } from "../../services/socketio";
 
 const OVERHEAT_THRESHOLD_C = 39.5;
 
@@ -23,6 +24,11 @@ export function IncubationCard({
   const [temperature, setTemperature] = useState<number | null>(null);
   const [humidity, setHumidity] = useState<number | null>(null);
   const [lampOn, setLampOn] = useState(defaultLampOn);
+  const [coolerOn, setCoolerOn] = useState(false);
+  const [coolerKnown, setCoolerKnown] = useState(false);
+  const [coolerRequestedOn, setCoolerRequestedOn] = useState(false);
+  const [coolerPending, setCoolerPending] = useState(false);
+  const [coolerError, setCoolerError] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [thermalProtectionActive, setThermalProtectionActive] = useState(false);
   const isOverheating = temperature !== null && temperature >= OVERHEAT_THRESHOLD_C;
@@ -79,6 +85,15 @@ export function IncubationCard({
   }, [protectionCleared]);
 
   useEffect(() => {
+    if (actuatorUpdate?.actuator === "cooler" && (actuatorUpdate.action === "on" || actuatorUpdate.action === "off")) {
+      const actualState = actuatorUpdate.action === "on";
+      setCoolerOn(actualState);
+      setCoolerKnown(true);
+      setCoolerRequestedOn(actualState);
+      setCoolerPending(false);
+      setCoolerError("");
+      return;
+    }
     if (actuatorUpdate?.actuator !== "lamp") return;
     if (actuatorUpdate.action === "off" || actuatorUpdate.action === "on") {
       setLampOn(actuatorUpdate.action === "on");
@@ -91,6 +106,36 @@ export function IncubationCard({
     }
   }, [actuatorUpdate]);
 
+  useEffect(() => {
+    if (!coolerPending) return;
+    const timeout = window.setTimeout(() => {
+      setCoolerPending(false);
+      setCoolerRequestedOn(coolerOn);
+      setCoolerError("ESP32 sem confirmação do novo estado.");
+    }, 15000);
+    return () => window.clearTimeout(timeout);
+  }, [coolerPending, coolerOn]);
+
+  const handleToggleCooler = async () => {
+    if (!canControl) {
+      onRequireAuth?.();
+      return;
+    }
+    if (coolerPending) return;
+
+    const on = !coolerOn;
+    setCoolerRequestedOn(on);
+    setCoolerPending(true);
+    setCoolerError("");
+    try {
+      const response = await socketService.emitWithAck<{ ok: boolean; error?: string }>("toggle_cooler", { on });
+      if (!response.ok) throw new Error(response.error || "Não foi possível enviar o comando.");
+    } catch (error) {
+      setCoolerPending(false);
+      setCoolerRequestedOn(coolerOn);
+      setCoolerError(error instanceof Error ? error.message : "Não foi possível controlar o cooler.");
+    }
+  };
   // Handle lamp toggle - calls backend API
   const handleToggleLamp = async () => {
     if (!canControl) {
@@ -130,6 +175,11 @@ export function IncubationCard({
   useEffect(() => {
     getActuatorStatus()
       .then((status) => {
+        if (status.cooler === "on" || status.cooler === "off") {
+          setCoolerOn(status.cooler === "on");
+          setCoolerKnown(true);
+          setCoolerRequestedOn(status.cooler === "on");
+        }
         if (status.lamp !== undefined) {
             if (typeof status.lamp === 'boolean') {
               setLampOn(status.lamp);
@@ -213,6 +263,36 @@ export function IncubationCard({
         )}
       </div>
 
+      <div className={`mb-3 rounded-[1.25rem] border p-3 transition-all duration-300 ${
+        darkMode ? "bg-gradient-to-br from-[#102b35]/90 to-[#0d1425]/80 border-cyan-300/20" : "bg-white/70 border-cyan-700/15"
+      }`}>
+        <div className="flex items-center justify-between gap-3">
+          <div className="flex min-w-0 items-center gap-2">
+            <div className={`rounded-xl p-2 ${coolerOn ? "bg-cyan-500 text-white shadow-[0_0_18px_rgba(6,182,212,0.4)]" : "bg-gray-300 text-gray-600"}`}>
+              <Wind className="h-4 w-4" strokeWidth={2.5} />
+            </div>
+            <div className="min-w-0">
+              <p className={`truncate text-xs font-semibold ${darkMode ? "text-white" : "text-[#001F3F]"}`}>Cooler de Ventilação</p>
+              <p className={`text-[10px] font-bold ${coolerPending ? "text-amber-500" : coolerOn ? "text-cyan-500" : darkMode ? "text-white/60" : "text-[#001F3F]/60"}`}>
+                {coolerPending || !coolerKnown ? "Aguardando ESP32" : coolerOn ? "LIGADO" : "DESLIGADO"}
+              </p>
+            </div>
+          </div>
+          <button
+            type="button"
+            role="switch"
+            aria-checked={coolerRequestedOn}
+            aria-label={canControl ? "Alternar cooler de ventilação" : "Entre para controlar o cooler"}
+            onClick={handleToggleCooler}
+            disabled={coolerPending}
+            className={`relative h-6 w-12 shrink-0 rounded-full transition-all duration-300 ${coolerRequestedOn ? "bg-cyan-500" : "bg-gray-300"} ${coolerPending ? "cursor-wait opacity-60" : "cursor-pointer"}`}
+          >
+            <span className={`absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition-all ${coolerRequestedOn ? "left-[26px]" : "left-0.5"}`} />
+          </button>
+        </div>
+        {coolerError && <p role="alert" className="mt-2 text-[10px] font-semibold text-red-500">{coolerError}</p>}
+        {!canControl && <button type="button" onClick={onRequireAuth} className={`mt-2 text-[10px] underline ${darkMode ? "text-cyan-300" : "text-cyan-800"}`}>Faça login para controlar o cooler</button>}
+      </div>
       <div className="grid grid-cols-2 gap-3">
         {/* Temperatura */}
         <div className={`relative bg-gradient-to-br from-[#FFE5CC]/40 via-white/50 to-[#FFB499]/30 backdrop-blur-xl rounded-[1.25rem] shadow-[0_8px_32px_rgba(255,100,100,0.15)] border p-4 overflow-hidden ${

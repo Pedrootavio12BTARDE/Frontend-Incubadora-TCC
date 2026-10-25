@@ -12,6 +12,7 @@
  */
 
 import io, { Socket } from 'socket.io-client';
+import { getAuthToken } from './api';
 
 class SocketIOService {
   private socket: Socket | null = null;
@@ -35,6 +36,7 @@ class SocketIOService {
 
     this.connectionPromise = new Promise<void>((resolve, reject) => {
       const socket = io(socketURL, {
+        auth: { token: getAuthToken() },
         reconnection: true,
         reconnectionDelay: 1000,
         reconnectionDelayMax: 5000,
@@ -92,6 +94,24 @@ class SocketIOService {
     }
   }
 
+  /** Refresh the JWT attached to the socket after login or logout. */
+  refreshAuthentication(): Promise<void> {
+    this.socket?.disconnect();
+    this.connectionPromise = null;
+    return this.connect();
+  }
+
+  /** Send a command and wait for the backend acknowledgement. */
+  emitWithAck<T>(event: string, data: unknown): Promise<T> {
+    const socket = this.socket;
+    if (!socket?.connected) return Promise.reject(new Error("Socket.io is not connected"));
+    return new Promise<T>((resolve, reject) => {
+      socket.timeout(8000).emit(event, data, (error: Error | null, response: T) => {
+        if (error) reject(new Error("O backend não confirmou o comando do cooler."));
+        else resolve(response);
+      });
+    });
+  }
   /**
    * Register a callback for a specific event
    * Multiple callbacks can be registered for the same event
@@ -157,7 +177,7 @@ export type SensorUpdate = {
 };
 
 export type ActuatorUpdate = {
-  actuator: 'lamp' | 'fan';
+  actuator: 'lamp' | 'fan' | 'cooler' | 'motor_mode' | 'motor';
   state: boolean | string;
   timestamp: string;
 };
