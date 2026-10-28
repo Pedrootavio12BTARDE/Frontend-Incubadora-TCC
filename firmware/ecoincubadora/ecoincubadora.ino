@@ -1,4 +1,5 @@
 #include <WiFi.h>
+#include <WiFiMulti.h>
 #include <HTTPClient.h>
 #include <WiFiClientSecure.h>
 #include <ArduinoJson.h>
@@ -8,7 +9,20 @@
 #include <freertos/FreeRTOS.h>
 #include <freertos/task.h>
 #include <freertos/semphr.h>
+#include <freertos/queue.h>
 #include "secrets.h"
+#ifndef WIFI_SSID_2
+#define WIFI_SSID_2 "Isadireito 2.4Ghz"
+#endif
+#ifndef WIFI_PASSWORD_2
+#define WIFI_PASSWORD_2 "pedrocas88"
+#endif
+#ifndef WIFI_SSID_3
+#define WIFI_SSID_3 ""
+#endif
+#ifndef WIFI_PASSWORD_3
+#define WIFI_PASSWORD_3 ""
+#endif
 #ifndef DEVICE_API_TOKEN
 #define DEVICE_API_TOKEN ""
 #endif
@@ -18,11 +32,12 @@ const char* API_BASE_URL = "https://ecoincubadora-backend.onrender.com/api/v1";
 constexpr uint8_t DHT_PIN = 14;
 constexpr uint8_t SOIL_SENSOR_PIN = 35;
 constexpr uint8_t LAMP_RELAY_PIN = 26;
-constexpr uint8_t COOLER_RELAY_PIN = 25;
+constexpr uint8_t COOLER_RELAY_PIN = 27; // GPIO25 reservado para IN2 da L298N
 
-// Pinos de Controle da Ponte H L9110S (Substituem o relé do motor)
-constexpr uint8_t MOTOR_IN1_PIN = 23; // Ponte H B-1A
-constexpr uint8_t MOTOR_IN2_PIN = 19; // Ponte H B-1B
+// L298N: ENA controla velocidade por PWM; IN1/IN2 definem o sentido.
+#define ENA_PIN 32
+#define IN1_PIN 33
+#define IN2_PIN 25
 
 constexpr uint8_t DHT_TYPE = DHT11;
 
@@ -47,13 +62,17 @@ constexpr uint32_t AUTO_ROLL_INTERVAL_MS = 4UL * 60UL * 60UL * 1000UL;
 
 // Tempo ideal de rotação da esteira para evitar queda dos ovos (1.5 segundos)
 constexpr uint32_t DEFAULT_MOTOR_DURATION_MS = 1500;
+constexpr uint8_t DEFAULT_MOTOR_SPEED = 105;
+constexpr uint32_t MOTOR_PWM_FREQUENCY_HZ = 1000;
 
+WiFiMulti wifiMulti;
 DHT dht(DHT_PIN, DHT_TYPE);
 WiFiClientSecure secureClient;
 StaticJsonDocument<4096> motorCommandResponse;
 StaticJsonDocument<4096> coolerCommandResponse;
 
 unsigned long lastSensorPost = 0;
+unsigned long lastSensorSample = 0;
 unsigned long lastDeviceHeartbeat = 0;
 unsigned long lastLampPoll = 0;
 unsigned long lastCoolerCommandPoll = 0;
@@ -64,8 +83,12 @@ unsigned long lastMotorCommandPoll = 0;
 unsigned long lastMotorModePoll = 0;
 unsigned long lastAutoRollAt = 0;
 
-bool wifiStarted = false;
+bool wifiReconnectTaskStarted = false;
 bool wifiWasConnected = false;
+float sampledTemperature = NAN;
+float sampledHumidity = NAN;
+float sampledSoilHumidity = NAN;
+int sampledSoilRaw = 0;
 volatile bool lampIsOn = false;
 bool coolerIsOn = false;
 bool coolerNeedsReport = true;
@@ -92,6 +115,9 @@ bool rotateClockwise = true; // Alterna entre Sentido Horário e Anti-Horário
 uint32_t motorStopAt = 0;
 uint32_t currentMotorCommandId = 0;
 uint32_t lastProcessedMotorCommandId = 0;
+struct MotorStatusMessage { uint8_t state; uint8_t speed; };
+QueueHandle_t motorStatusQueue = nullptr;
+uint8_t activeMotorSpeed = 0;
 
 int coolerRelayOnLevel() {
   return COOLER_RELAY_ACTIVE_LOW ? LOW : HIGH;
@@ -142,23 +168,62 @@ void applyLamp(bool on) {
 }
 
 // Funções de Controle de Rotação da Ponte H
-void stopMotor() {
-  digitalWrite(MOTOR_IN1_PIN, LOW);
-  digitalWrite(MOTOR_IN2_PIN, LOW);
+void pararEsteira() {
+  analogWrite(ENA_PIN, 0);
+  digitalWrite(IN1_PIN, LOW);
+  digitalWrite(IN2_PIN, LOW);
+  motorRunning = false;
 }
 
-void startMotor(bool clockwise) {
-  if (clockwise) {
-    // Giro para frente / Horário
-    digitalWrite(MOTOR_IN1_PIN, HIGH);
-    digitalWrite(MOTOR_IN2_PIN, LOW);
-  } else {
-    // Giro para trás / Anti-horário
-    digitalWrite(MOTOR_IN1_PIN, LOW);
-    digitalWrite(MOTOR_IN2_PIN, HIGH);
+void moverEsteira(bool sentido, int velocidade, int duracao_ms) {
+  velocidade = constrain(velocidade, 0, 255);
+  duracao_ms = constrain(duracao_ms, 1, 10000);
+  if (velocidade == 0) {
+    pararEsteira();
+    return;
+  }
+  digitalWrite(IN1_PIN, sentido ? HIGH : LOW);
+  digitalWrite(IN2_PIN, sentido ? LOW : HIGH);
+  analogWrite(ENA_PIN, velocidade);
+  activeMotorSpeed = static_cast<uint8_t>(velocidade);
+  motorStopAt = millis() + static_cast<uint32_t>(duracao_ms);
+  motorRunning = true;
+}
+
+void queueMotorState(uint8_t state) {
+  if (!motorStatusQueue) return;
+  const MotorStatusMessage message = { state, state == 1 ? activeMotorSpeed : static_cast<uint8_t>(0) };
+  if (xQueueSend(motorStatusQueue, &message, 0) != pdTRUE) {
+    MotorStatusMessage discarded;
+    xQueueReceive(motorStatusQueue, &discarded, 0);
+    xQueueSend(motorStatusQueue, &message, 0);
   }
 }
+void reportMotorStateTask(void* parameter) {
+  (void)parameter;
+  MotorStatusMessage message;
+  for (;;) {
+    if (xQueueReceive(motorStatusQueue, &message, portMAX_DELAY) != pdTRUE) continue;
+    while (WiFi.status() != WL_CONNECTED) vTaskDelay(pdMS_TO_TICKS(1000));
 
+    WiFiClientSecure reportClient;
+    reportClient.setInsecure();
+    HTTPClient http;
+    http.setTimeout(5000);
+    if (http.begin(reportClient, apiUrl("/actuators/motor/report"))) {
+      StaticJsonDocument<96> report;
+      report["state"] = message.state == 1 ? "MOVING" : "STOPPED";
+      report["speed"] = message.speed;
+      String body;
+      serializeJson(report, body);
+      http.addHeader("Content-Type", "application/json");
+      http.addHeader("x-device-token", DEVICE_API_TOKEN);
+      const int status = http.POST(body);
+      if (status < 0) Serial.printf("Falha ao reportar status da esteira: HTTP %d\n", status);
+      http.end();
+    }
+  }
+}
 float readSoilHumidityPercent(int rawValue) {
   if (SOIL_DRY_RAW == SOIL_WET_RAW) return NAN;
 
@@ -169,6 +234,27 @@ float readSoilHumidityPercent(int rawValue) {
   return constrain(percentage, 0.0f, 100.0f);
 }
 
+bool addConfiguredWifi(const char* ssid, const char* password, const char* label) {
+  if (ssid == nullptr || ssid[0] == '\0') return false;
+  const bool added = wifiMulti.addAP(ssid, password);
+  Serial.printf("%s Wi-Fi: %s\n", added ? "Rede cadastrada" : "Falha ao cadastrar", label);
+  return added;
+}
+
+void configureWifiNetworks() {
+  addConfiguredWifi(WIFI_SSID, WIFI_PASSWORD, "Principal");
+  addConfiguredWifi(WIFI_SSID_2, WIFI_PASSWORD_2, "Secundaria");
+  addConfiguredWifi(WIFI_SSID_3, WIFI_PASSWORD_3, "Hotspot");
+}
+
+void wifiReconnectTask(void* parameter) {
+  (void)parameter;
+  for (;;) {
+    // WiFiMulti may wait for its scan/connection timeout; this runs on a separate FreeRTOS task.
+    const uint8_t status = wifiMulti.run(5000);
+    vTaskDelay(pdMS_TO_TICKS(status == WL_CONNECTED ? 5000 : 250));
+  }
+}
 bool ensureSystemTime(unsigned long now) {
   const time_t currentTime = time(nullptr);
   if (currentTime > 1700000000) {
@@ -415,14 +501,15 @@ void pollCoolerCommands() {
     const bool requestedState = strcmp(action, "on") == 0;
     applyCooler(requestedState);
     if (reportCoolerState(requestedState) && acknowledgeActuatorCommand(commandId)) {
-      Serial.printf("Comando %lu do cooler confirmado: %s (GPIO25)\n",
+      Serial.printf("Comando %lu do cooler confirmado: %s (GPIO27)\n",
                     static_cast<unsigned long>(commandId), requestedState ? "LIGADO" : "DESLIGADO");
     }
     return;
   }
 }
 void finishMotorRotation() {
-  stopMotor(); // Para a Ponte H
+  pararEsteira();
+  queueMotorState(0);
   motorRunning = false;
   
   // Inverte o sentido para a próxima rolagem de ovos
@@ -448,10 +535,11 @@ void serviceAutomaticRoll(unsigned long now) {
   if (!autoModeEnabled || motorRunning || now - lastAutoRollAt < AUTO_ROLL_INTERVAL_MS) return;
   lastAutoRollAt = now;
   currentMotorCommandId = 0;
-  motorStopAt = now + DEFAULT_MOTOR_DURATION_MS;
-  motorRunning = true;
-  startMotor(rotateClockwise);
-  Serial.printf("Rolagem automatica iniciada por %lu ms no sentido: %s\n", static_cast<unsigned long>(DEFAULT_MOTOR_DURATION_MS), rotateClockwise ? "Frente" : "Tras");
+  moverEsteira(rotateClockwise, DEFAULT_MOTOR_SPEED, DEFAULT_MOTOR_DURATION_MS);
+  queueMotorState(1);
+  Serial.printf("Rolagem automatica L298N: PWM=%u/255, %lu ms, sentido=%s\n",
+                DEFAULT_MOTOR_SPEED, static_cast<unsigned long>(DEFAULT_MOTOR_DURATION_MS),
+                rotateClockwise ? "A" : "B");
 }
 void pollMotorCommands() {
   if (WiFi.status() != WL_CONNECTED || motorRunning) return;
@@ -513,21 +601,17 @@ void pollMotorCommands() {
       continue;
     }
 
-    // Se o backend não definir o tempo, usa o padrão seguro de 1500 ms (1.5s)
-    uint32_t durationMs = command["durationMs"] | DEFAULT_MOTOR_DURATION_MS;
-    durationMs = constrain(durationMs, 500U, 4000U);
+    int durationMs = command["durationMs"] | static_cast<int>(DEFAULT_MOTOR_DURATION_MS);
+    durationMs = constrain(durationMs, 500, 4000);
+    const int speed = constrain(static_cast<int>(command["speed"] | DEFAULT_MOTOR_SPEED), 0, 255);
 
     lastProcessedMotorCommandId = commandId;
     currentMotorCommandId = commandId;
-    motorStopAt = millis() + durationMs;
-    motorRunning = true;
-    
-    // Aciona a Ponte H no sentido atual
-    startMotor(rotateClockwise);
-    
-    Serial.printf("Motor Ponte H ligado por %lu ms no sentido: %s; comando %lu\n",
-                  static_cast<unsigned long>(durationMs),
-                  rotateClockwise ? "Frente" : "Trás",
+    moverEsteira(rotateClockwise, speed, durationMs);
+    queueMotorState(1);
+
+    Serial.printf("Esteira L298N: PWM=%d/255 por %d ms, sentido=%s; comando %lu\n",
+                  speed, durationMs, rotateClockwise ? "A" : "B",
                   static_cast<unsigned long>(commandId));
     break;
   }
@@ -579,9 +663,7 @@ void sendDeviceHeartbeat() {
   Serial.printf("Heartbeat %s: HTTP %d\n", currentDeviceId().c_str(), status);
   http.end();
 }
-void postSensorReadings() {
-  if (WiFi.status() != WL_CONNECTED) return;
-
+void sampleSensorReadings() {
   float temperature = NAN;
   float humidity = NAN;
   if (dhtMutex && xSemaphoreTake(dhtMutex, pdMS_TO_TICKS(250)) == pdTRUE) {
@@ -589,13 +671,22 @@ void postSensorReadings() {
     humidity = dht.readHumidity();
     xSemaphoreGive(dhtMutex);
   }
-  const int soilRaw = analogRead(SOIL_SENSOR_PIN);
-  const float soilHumidity = readSoilHumidityPercent(soilRaw);
+
+  sampledSoilRaw = analogRead(SOIL_SENSOR_PIN);
+  sampledTemperature = temperature;
+  sampledHumidity = humidity;
+  sampledSoilHumidity = readSoilHumidityPercent(sampledSoilRaw);
+
+  Serial.printf("Leitura local: temperatura=%.1f C, umidade=%.1f%%, solo ADC=%d (%.1f%%)\n",
+                sampledTemperature, sampledHumidity, sampledSoilRaw, sampledSoilHumidity);
+}
+void postSensorReadings() {
+  if (WiFi.status() != WL_CONNECTED) return;
 
   StaticJsonDocument<160> readings;
-  if (isfinite(temperature) && temperature > 0) readings["temperature"] = temperature;
-  if (isfinite(humidity) && humidity > 0) readings["humidity"] = humidity;
-  if (isfinite(soilHumidity)) readings["soilHumidity"] = soilHumidity;
+  if (isfinite(sampledTemperature) && sampledTemperature > 0) readings["temperature"] = sampledTemperature;
+  if (isfinite(sampledHumidity) && sampledHumidity > 0) readings["humidity"] = sampledHumidity;
+  if (isfinite(sampledSoilHumidity)) readings["soilHumidity"] = sampledSoilHumidity;
 
   if (readings.size() == 0) {
     Serial.println("Nenhuma leitura valida para enviar.");
@@ -613,7 +704,7 @@ void postSensorReadings() {
   logHttpFailure("Envio das leituras", http, status);
 
   Serial.printf("Leitura ADC solo: %d, umidade calculada: %.1f%%, HTTP: %d\n",
-                soilRaw, soilHumidity, status);
+                sampledSoilRaw, sampledSoilHumidity, status);
   http.end();
 }
 
@@ -628,10 +719,19 @@ void setup() {
   pinMode(LAMP_RELAY_PIN, OUTPUT);
   digitalWrite(LAMP_RELAY_PIN, relayOffLevel());
 
-  // Configuração da Ponte H (L9110S)
-  pinMode(MOTOR_IN1_PIN, OUTPUT);
-  pinMode(MOTOR_IN2_PIN, OUTPUT);
-  stopMotor();
+  // L298N: remova o jumper ENA para habilitar PWM.
+  pinMode(ENA_PIN, OUTPUT);
+  pinMode(IN1_PIN, OUTPUT);
+  pinMode(IN2_PIN, OUTPUT);
+  analogWriteResolution(ENA_PIN, 8);
+  analogWriteFrequency(ENA_PIN, MOTOR_PWM_FREQUENCY_HZ);
+  pararEsteira();
+  motorStatusQueue = xQueueCreate(4, sizeof(MotorStatusMessage));
+  if (motorStatusQueue && xTaskCreatePinnedToCore(reportMotorStateTask, "MotorStatus", 4096, nullptr, 1, nullptr, 0) != pdPASS) {
+    vQueueDelete(motorStatusQueue);
+    motorStatusQueue = nullptr;
+    Serial.println("Falha ao iniciar envio de status da esteira ao backend.");
+  }
 
   analogReadResolution(12);
   dht.begin();
@@ -646,11 +746,15 @@ void setup() {
     Serial.println("Falha ao iniciar protecao termica do DHT; lampada bloqueada por seguranca.");
   }
   WiFi.mode(WIFI_STA);
-  WiFi.setAutoReconnect(true);
-  WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
-  wifiStarted = true;
+  WiFi.setAutoReconnect(false);
+  configureWifiNetworks();
+  const BaseType_t wifiTaskCreated = xTaskCreatePinnedToCore(wifiReconnectTask, "WiFiMulti", 4096, nullptr, 1, nullptr, 0);
+  wifiReconnectTaskStarted = wifiTaskCreated == pdPASS;
+  if (!wifiReconnectTaskStarted) {
+    Serial.println("Falha ao iniciar tarefa WiFiMulti; reconexao automatica indisponivel.");
+  }
 
-  Serial.println("Conectando ao Wi-Fi...");
+  Serial.println("Procurando redes Wi-Fi cadastradas...");
   Serial.println("EcoIncubadora ESP32 iniciada.");
 }
 
@@ -661,9 +765,14 @@ void loop() {
   consumeThermalTransition();
   serviceAutomaticRoll(now);
 
+  if (now - lastSensorSample >= SENSOR_INTERVAL_MS) {
+    lastSensorSample = now;
+    sampleSensorReadings();
+  }
+
   const bool wifiConnected = WiFi.status() == WL_CONNECTED;
   if (wifiConnected && !wifiWasConnected) {
-    Serial.printf("Wi-Fi conectado. IP do ESP32: %s\n", WiFi.localIP().toString().c_str());
+    Serial.printf("Wi-Fi conectado: SSID=%s, IP=%s\n", WiFi.SSID().c_str(), WiFi.localIP().toString().c_str());
   } else if (!wifiConnected && wifiWasConnected) {
     Serial.println("Wi-Fi desconectado.");
   }
@@ -672,8 +781,8 @@ void loop() {
   if (!wifiConnected) {
     if (now - lastWifiDiagnostic >= 5000) {
       lastWifiDiagnostic = now;
-      Serial.printf("Wi-Fi ainda desconectado: status=%d, SSID=%s\n",
-                    static_cast<int>(WiFi.status()), WIFI_SSID);
+      Serial.printf("Wi-Fi ainda desconectado: status=%d; WiFiMulti tentando redes cadastradas.\n",
+                    static_cast<int>(WiFi.status()));
     }
     return;
   }
@@ -720,6 +829,4 @@ void loop() {
     lastLampPoll = now;
     pollLampState();
   }
-}
-
 }

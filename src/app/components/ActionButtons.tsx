@@ -1,6 +1,6 @@
 import { FileText, RotateCw, Repeat2 } from "lucide-react";
 import { useEffect, useState } from "react";
-import { getMotorMode, rotateMotor, setMotorAutoMode } from "../../services/api";
+import { getMotorMode, getMotorState, rotateMotor, setMotorAutoMode } from "../../services/api";
 import { socketService } from "../../services/socketio";
 
 interface ActionButtonsProps {
@@ -18,6 +18,8 @@ export function ActionButtons({
 }: ActionButtonsProps) {
   const [isRotatingRequest, setIsRotatingRequest] = useState(false);
   const [rotationMessage, setRotationMessage] = useState("");
+  const [motorSpeed, setMotorSpeed] = useState(105);
+  const [motorState, setMotorState] = useState<"MOVING" | "STOPPED">("STOPPED");
   const [autoRoll, setAutoRoll] = useState(false);
   const [isLoadingMode, setIsLoadingMode] = useState(true);
   const [isSavingMode, setIsSavingMode] = useState(false);
@@ -40,9 +42,15 @@ export function ActionButtons({
       if (data?.actuator === "motor_mode" && typeof data.autoRoll === "boolean") {
         setAutoRoll(data.autoRoll);
       }
+      if (data?.actuator === "motor" && (data.state === "MOVING" || data.state === "STOPPED")) {
+        setMotorState(data.state);
+      }
     };
 
     void loadMode();
+    void getMotorState().then((state) => {
+      if (mounted) setMotorState(state.state);
+    }).catch((error) => console.error("Não foi possível carregar o status da esteira:", error));
     socketService.on("actuator:update", handleActuatorUpdate);
     return () => {
       mounted = false;
@@ -81,7 +89,7 @@ export function ActionButtons({
     setIsRotatingRequest(true);
     setRotationMessage("");
     try {
-      await rotateMotor(1500);
+      await rotateMotor(1500, motorSpeed);
       setRotationMessage("Comando enviado: rolagem em andamento.");
     } catch (error) {
       console.error("Erro ao solicitar rolagem:", error);
@@ -127,6 +135,22 @@ export function ActionButtons({
       </button>
       {modeMessage && <p role="status" className={`text-center text-xs ${darkMode ? "text-white/70" : "text-[#001F3F]/70"}`}>{modeMessage}</p>}
 
+      <div className="rounded-2xl border border-slate-300/50 bg-white/60 px-4 py-3 text-slate-800">
+        <div className="mb-2 flex items-center justify-between gap-3 text-xs font-semibold">
+          <span>Esteira: {motorState === "MOVING" ? "MOVENDO" : "PARADO"}</span>
+          <span>Velocidade {motorSpeed}/255</span>
+        </div>
+        <input
+          aria-label="Velocidade PWM da esteira"
+          type="range"
+          min={60}
+          max={180}
+          step={5}
+          value={motorSpeed}
+          onChange={(event) => setMotorSpeed(Number(event.target.value))}
+          className="w-full accent-[#16835e]"
+        />
+      </div>
       <button
         type="button"
         onClick={handleRotate}

@@ -212,6 +212,59 @@ router.patch('/lamp', requireAuth, async (req, res) => {
   }
 });
 
+router.get('/motor/state', async (_req, res) => {
+  try {
+    const latest = await prisma.actuatorLog.findFirst({
+      where: { actuator: 'motor' },
+      orderBy: { createdAt: 'desc' },
+    });
+    const details = latest?.payload ? JSON.parse(latest.payload) : {};
+    res.json({ state: latest?.action === 'MOVING' ? 'MOVING' : 'STOPPED', speed: details.speed ?? 0, updatedAt: latest?.createdAt.toISOString() ?? null });
+  } catch {
+    res.status(500).json({ error: 'failed to load motor state' });
+  }
+});
+
+router.post('/motor/report', async (req, res) => {
+  const configuredToken = process.env.ESP32_DEVICE_TOKEN;
+  const providedToken = req.header('x-device-token');
+  if (!configuredToken || configuredToken.length < 32) {
+    return res.status(503).json({ error: 'device authentication is not configured' });
+  }
+  if (!providedToken) return res.status(401).json({ error: 'invalid device token' });
+  const received = Buffer.from(providedToken);
+  const expected = Buffer.from(configuredToken);
+  if (received.length !== expected.length || !timingSafeEqual(received, expected)) {
+    return res.status(401).json({ error: 'invalid device token' });
+  }
+
+  const state = req.body?.state;
+  const speed = Number(req.body?.speed);
+  if (!['MOVING', 'STOPPED'].includes(state) || !Number.isInteger(speed) || (state === 'MOVING' && (speed < 1 || speed > 255)) || (state === 'STOPPED' && speed !== 0)) {
+    return res.status(400).json({ error: 'state or speed is invalid' });
+  }
+
+  try {
+    const previous = await prisma.actuatorLog.findFirst({
+      where: { actuator: 'motor' },
+      orderBy: { createdAt: 'desc' },
+    });
+    const action = state;
+    const payload = JSON.stringify({ speed });
+    if (previous?.action !== action || previous.payload !== payload) {
+      const created = await prisma.actuatorLog.create({
+        data: { actuator: 'motor', action, payload },
+      });
+      req.app.get('io')?.emit('actuator:update', {
+        actuator: 'motor', action: action.toLowerCase(), state, speed,
+        timestamp: created.createdAt.toISOString(),
+      });
+    }
+    return res.json({ ok: true, state, speed });
+  } catch {
+    return res.status(500).json({ error: 'failed to report motor state' });
+  }
+});
 router.get('/motor/mode', async (_req, res) => {
   try {
     const modeLog = await prisma.actuatorLog.findFirst({
@@ -252,31 +305,32 @@ router.patch('/motor/mode', requireAuth, async (req, res) => {
 });
 router.post('/motor/rotate', requireAuth, async (req, res) => {
   try {
-    const durationMs = req.body?.durationMs === undefined ? 1000 : Number(req.body.durationMs);
+    const durationMs = req.body?.durationMs === undefined ? 1500 : Number(req.body.durationMs);
+    const speed = req.body?.speed === undefined ? 105 : Number(req.body.speed);
     if (!Number.isInteger(durationMs) || durationMs < 100 || durationMs > 10000) {
       return res.status(400).json({ error: 'durationMs must be an integer between 100 and 10000' });
     }
+    if (!Number.isInteger(speed) || speed < 1 || speed > 255) {
+      return res.status(400).json({ error: 'speed must be an integer between 1 and 255' });
+    }
 
     const command = await prisma.actuatorCommand.create({
-      data: { actuator: 'motor', action: 'rotate', durationMs },
+      data: { actuator: 'motor', action: 'rotate', durationMs, speed },
     });
 
-    const io = req.app.get('io');
-    if (io) {
-      io.emit('actuator:update', {
-        actuator: 'motor',
-        action: 'rotate',
-        commandId: command.id,
-        durationMs: command.durationMs,
-      });
-    }
+    req.app.get('io')?.emit('actuator:update', {
+      actuator: 'motor',
+      action: 'rotate',
+      commandId: command.id,
+      durationMs: command.durationMs,
+      speed: command.speed,
+    });
 
     res.status(201).json({ ok: true, command });
   } catch (err) {
     res.status(500).json({ error: 'failed to queue motor rotation' });
   }
 });
-
 /**
  * PATCH /api/v1/actuators/fan
  * 

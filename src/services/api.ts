@@ -156,16 +156,25 @@ export async function setFan(state: 'on' | 'off' | 'auto'): Promise<{ success: b
   });
 }
 
-export async function rotateMotor(durationMs: number = 1500): Promise<{
+export async function rotateMotor(durationMs: number = 1500, speed: number = 105): Promise<{
   ok: boolean;
-  command: { id: number; durationMs: number; status: string };
+  command: { id: number; durationMs: number; speed: number; status: string };
 }> {
   return fetchAPI('/actuators/motor/rotate', {
     method: 'POST',
-    body: JSON.stringify({ durationMs }),
+    body: JSON.stringify({ durationMs, speed }),
   });
 }
 
+export interface MotorState {
+  state: 'MOVING' | 'STOPPED';
+  speed: number;
+  updatedAt: string | null;
+}
+
+export async function getMotorState(): Promise<MotorState> {
+  return fetchAPI<MotorState>('/actuators/motor/state');
+}
 export interface MotorMode {
   autoRoll: boolean;
   intervalHours: number;
