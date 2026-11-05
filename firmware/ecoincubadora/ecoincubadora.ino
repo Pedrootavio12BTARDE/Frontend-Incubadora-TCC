@@ -34,8 +34,7 @@ constexpr uint8_t SOIL_SENSOR_PIN = 35;
 constexpr uint8_t LAMP_RELAY_PIN = 26;
 constexpr uint8_t COOLER_RELAY_PIN = 27; // GPIO25 reservado para IN2 da L298N
 
-// L298N: ENA controla velocidade por PWM; IN1/IN2 definem o sentido.
-#define ENA_PIN 32
+// Pinos de controle da Ponte H (apenas IN1 e IN2)
 #define IN1_PIN 33
 #define IN2_PIN 25
 
@@ -62,8 +61,6 @@ constexpr uint32_t AUTO_ROLL_INTERVAL_MS = 4UL * 60UL * 60UL * 1000UL;
 
 // Tempo ideal de rotação da esteira para evitar queda dos ovos (1.5 segundos)
 constexpr uint32_t DEFAULT_MOTOR_DURATION_MS = 1500;
-constexpr uint8_t DEFAULT_MOTOR_SPEED = 140;
-constexpr uint32_t MOTOR_PWM_FREQUENCY_HZ = 1000;
 
 WiFiMulti wifiMulti;
 DHT dht(DHT_PIN, DHT_TYPE);
@@ -115,9 +112,8 @@ bool rotateClockwise = true; // Alterna entre Sentido Horário e Anti-Horário
 uint32_t motorStopAt = 0;
 uint32_t currentMotorCommandId = 0;
 uint32_t lastProcessedMotorCommandId = 0;
-struct MotorStatusMessage { uint8_t state; uint8_t speed; };
+struct MotorStatusMessage { uint8_t state; };
 QueueHandle_t motorStatusQueue = nullptr;
-uint8_t activeMotorSpeed = 0;
 
 int coolerRelayOnLevel() {
   return COOLER_RELAY_ACTIVE_LOW ? LOW : HIGH;
@@ -167,32 +163,25 @@ void applyLamp(bool on) {
   digitalWrite(LAMP_RELAY_PIN, on ? relayOnLevel() : relayOffLevel());
 }
 
-// Funções de Controle de Rotação da Ponte H
+// Funções de Controle de Rotação da Ponte H (apenas IN1 e IN2)
 void pararEsteira() {
-  analogWrite(ENA_PIN, 0);
   digitalWrite(IN1_PIN, LOW);
   digitalWrite(IN2_PIN, LOW);
   motorRunning = false;
 }
 
-void moverEsteira(bool sentido, int velocidade, int duracao_ms) {
-  velocidade = constrain(velocidade, 0, 255);
+void moverEsteira(bool sentido, int duracao_ms) {
   duracao_ms = constrain(duracao_ms, 1, 10000);
-  if (velocidade == 0) {
-    pararEsteira();
-    return;
-  }
+  // Frente: IN1 = HIGH, IN2 = LOW | Trás: IN1 = LOW, IN2 = HIGH
   digitalWrite(IN1_PIN, sentido ? HIGH : LOW);
   digitalWrite(IN2_PIN, sentido ? LOW : HIGH);
-  analogWrite(ENA_PIN, velocidade);
-  activeMotorSpeed = static_cast<uint8_t>(velocidade);
   motorStopAt = millis() + static_cast<uint32_t>(duracao_ms);
   motorRunning = true;
 }
 
 void queueMotorState(uint8_t state) {
   if (!motorStatusQueue) return;
-  const MotorStatusMessage message = { state, state == 1 ? activeMotorSpeed : static_cast<uint8_t>(0) };
+  const MotorStatusMessage message = { state };
   if (xQueueSend(motorStatusQueue, &message, 0) != pdTRUE) {
     MotorStatusMessage discarded;
     xQueueReceive(motorStatusQueue, &discarded, 0);
@@ -213,7 +202,6 @@ void reportMotorStateTask(void* parameter) {
     if (http.begin(reportClient, apiUrl("/actuators/motor/report"))) {
       StaticJsonDocument<96> report;
       report["state"] = message.state == 1 ? "MOVING" : "STOPPED";
-      report["speed"] = message.speed;
       String body;
       serializeJson(report, body);
       http.addHeader("Content-Type", "application/json");
@@ -535,11 +523,11 @@ void serviceAutomaticRoll(unsigned long now) {
   if (!autoModeEnabled || motorRunning || now - lastAutoRollAt < AUTO_ROLL_INTERVAL_MS) return;
   lastAutoRollAt = now;
   currentMotorCommandId = 0;
-  moverEsteira(rotateClockwise, DEFAULT_MOTOR_SPEED, DEFAULT_MOTOR_DURATION_MS);
+  moverEsteira(rotateClockwise, DEFAULT_MOTOR_DURATION_MS);
   queueMotorState(1);
-  Serial.printf("Rolagem automatica L298N: PWM=%u/255, %lu ms, sentido=%s\n",
-                DEFAULT_MOTOR_SPEED, static_cast<unsigned long>(DEFAULT_MOTOR_DURATION_MS),
-                rotateClockwise ? "A" : "B");
+  Serial.printf("Rolagem automatica Ponte H: %lu ms, sentido=%s\n",
+                static_cast<unsigned long>(DEFAULT_MOTOR_DURATION_MS),
+                rotateClockwise ? "Frente (IN1)" : "Trás (IN2)");
 }
 void pollMotorCommands() {
   if (WiFi.status() != WL_CONNECTED || motorRunning) return;
@@ -603,15 +591,14 @@ void pollMotorCommands() {
 
     int durationMs = command["durationMs"] | static_cast<int>(DEFAULT_MOTOR_DURATION_MS);
     durationMs = constrain(durationMs, 500, 4000);
-    const int speed = constrain(static_cast<int>(command["speed"] | DEFAULT_MOTOR_SPEED), 0, 255);
 
     lastProcessedMotorCommandId = commandId;
     currentMotorCommandId = commandId;
-    moverEsteira(rotateClockwise, speed, durationMs);
+    moverEsteira(rotateClockwise, durationMs);
     queueMotorState(1);
 
-    Serial.printf("Esteira L298N: PWM=%d/255 por %d ms, sentido=%s; comando %lu\n",
-                  speed, durationMs, rotateClockwise ? "A" : "B",
+    Serial.printf("Esteira Ponte H acionada por %d ms, sentido=%s; comando %lu\n",
+                  durationMs, rotateClockwise ? "Frente (IN1)" : "Trás (IN2)",
                   static_cast<unsigned long>(commandId));
     break;
   }
@@ -719,12 +706,9 @@ void setup() {
   pinMode(LAMP_RELAY_PIN, OUTPUT);
   digitalWrite(LAMP_RELAY_PIN, relayOffLevel());
 
-  // L298N: remova o jumper ENA para habilitar PWM.
-  pinMode(ENA_PIN, OUTPUT);
+  // Configuração dos pinos da Ponte H (apenas IN1 e IN2)
   pinMode(IN1_PIN, OUTPUT);
   pinMode(IN2_PIN, OUTPUT);
-  analogWriteResolution(ENA_PIN, 8);
-  analogWriteFrequency(ENA_PIN, MOTOR_PWM_FREQUENCY_HZ);
   pararEsteira();
   motorStatusQueue = xQueueCreate(4, sizeof(MotorStatusMessage));
   if (motorStatusQueue && xTaskCreatePinnedToCore(reportMotorStateTask, "MotorStatus", 4096, nullptr, 1, nullptr, 0) != pdPASS) {

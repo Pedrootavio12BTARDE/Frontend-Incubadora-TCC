@@ -213,8 +213,10 @@ router.get('/motor/state', async (_req, res) => {
             where: { actuator: 'motor' },
             orderBy: { createdAt: 'desc' },
         });
-        const details = latest?.payload ? JSON.parse(latest.payload) : {};
-        res.json({ state: latest?.action === 'MOVING' ? 'MOVING' : 'STOPPED', speed: details.speed ?? 0, updatedAt: latest?.createdAt.toISOString() ?? null });
+        res.json({
+            state: latest?.action === 'MOVING' ? 'MOVING' : 'STOPPED',
+            updatedAt: latest?.createdAt.toISOString() ?? null,
+        });
     }
     catch {
         res.status(500).json({ error: 'failed to load motor state' });
@@ -234,9 +236,8 @@ router.post('/motor/report', async (req, res) => {
         return res.status(401).json({ error: 'invalid device token' });
     }
     const state = req.body?.state;
-    const speed = Number(req.body?.speed);
-    if (!['MOVING', 'STOPPED'].includes(state) || !Number.isInteger(speed) || (state === 'MOVING' && (speed < 1 || speed > 255)) || (state === 'STOPPED' && speed !== 0)) {
-        return res.status(400).json({ error: 'state or speed is invalid' });
+    if (!['MOVING', 'STOPPED'].includes(state)) {
+        return res.status(400).json({ error: 'state is invalid' });
     }
     try {
         const previous = await prisma_1.default.actuatorLog.findFirst({
@@ -244,17 +245,18 @@ router.post('/motor/report', async (req, res) => {
             orderBy: { createdAt: 'desc' },
         });
         const action = state;
-        const payload = JSON.stringify({ speed });
-        if (previous?.action !== action || previous?.payload !== payload) {
+        if (previous?.action !== action) {
             const created = await prisma_1.default.actuatorLog.create({
-                data: { actuator: 'motor', action, payload },
+                data: { actuator: 'motor', action },
             });
             req.app.get('io')?.emit('actuator:update', {
-                actuator: 'motor', action: action.toLowerCase(), state, speed,
+                actuator: 'motor',
+                action: action.toLowerCase(),
+                state,
                 timestamp: created.createdAt.toISOString(),
             });
         }
-        return res.json({ ok: true, state, speed });
+        return res.json({ ok: true, state });
     }
     catch {
         return res.status(500).json({ error: 'failed to report motor state' });
@@ -301,22 +303,17 @@ router.patch('/motor/mode', requireAuth_1.requireAuth, async (req, res) => {
 router.post('/motor/rotate', requireAuth_1.requireAuth, async (req, res) => {
     try {
         const durationMs = req.body?.durationMs === undefined ? 1500 : Number(req.body?.durationMs);
-        const speed = req.body?.speed === undefined ? 140 : Number(req.body.speed);
         if (!Number.isInteger(durationMs) || durationMs < 100 || durationMs > 10000) {
             return res.status(400).json({ error: 'durationMs must be an integer between 100 and 10000' });
         }
-        if (!Number.isInteger(speed) || speed < 1 || speed > 255) {
-            return res.status(400).json({ error: 'speed must be an integer between 1 and 255' });
-        }
         const command = await prisma_1.default.actuatorCommand.create({
-            data: { actuator: 'motor', action: 'rotate', durationMs, speed },
+            data: { actuator: 'motor', action: 'rotate', durationMs },
         });
         req.app.get('io')?.emit('actuator:update', {
             actuator: 'motor',
             action: 'rotate',
             commandId: command.id,
             durationMs: command.durationMs,
-            speed: command.speed,
         });
         res.status(201).json({ ok: true, command });
     }

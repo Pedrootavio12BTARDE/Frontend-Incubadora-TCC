@@ -10,8 +10,6 @@ interface ActionButtonsProps {
   onRequireAuth?: () => void;
 }
 
-const FIXED_MOTOR_SPEED = 140; // Velocidade fixa suave da esteira (PWM)
-
 export function ActionButtons({
   onNavigateToReports,
   darkMode = false,
@@ -96,7 +94,7 @@ export function ActionButtons({
     const nextDirection = direction === "Horário" ? "Anti-horário" : "Horário";
 
     try {
-      await rotateMotor(1500, FIXED_MOTOR_SPEED);
+      await rotateMotor(1500);
       setRotationMessage(`Rolando no sentido ${activeDirection}. Próximo giro: ${nextDirection}.`);
       setDirection(nextDirection);
     } catch (error) {
