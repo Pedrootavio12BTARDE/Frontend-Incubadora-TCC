@@ -62,7 +62,7 @@ constexpr uint32_t AUTO_ROLL_INTERVAL_MS = 4UL * 60UL * 60UL * 1000UL;
 
 // Tempo ideal de rotação da esteira para evitar queda dos ovos (1.5 segundos)
 constexpr uint32_t DEFAULT_MOTOR_DURATION_MS = 1500;
-constexpr uint8_t DEFAULT_MOTOR_SPEED = 105;
+constexpr uint8_t DEFAULT_MOTOR_SPEED = 140;
 constexpr uint32_t MOTOR_PWM_FREQUENCY_HZ = 1000;
 
 WiFiMulti wifiMulti;

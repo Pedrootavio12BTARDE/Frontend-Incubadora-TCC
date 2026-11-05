@@ -1,4 +1,4 @@
-import { FileText, RotateCw, RotateCcw, Repeat2, ArrowLeftRight } from "lucide-react";
+import { FileText, RotateCw, RotateCcw, Repeat2 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { getMotorMode, getMotorState, rotateMotor, setMotorAutoMode } from "../../services/api";
 import { socketService } from "../../services/socketio";
@@ -46,10 +46,6 @@ export function ActionButtons({
       }
       if (data?.actuator === "motor" && (data.state === "MOVING" || data.state === "STOPPED")) {
         setMotorState(data.state);
-        // Quando a esteira conclui a rolagem e para, o sentido alterna para a próxima
-        if (data.state === "STOPPED") {
-          setDirection((prev) => (prev === "Horário" ? "Anti-horário" : "Horário"));
-        }
       }
     };
 
@@ -94,23 +90,21 @@ export function ActionButtons({
 
     setIsRotatingRequest(true);
     setRotationMessage("");
+
+    // Inverte o sentido automaticamente assim que o usuário clica para girar
+    const activeDirection = direction;
+    const nextDirection = direction === "Horário" ? "Anti-horário" : "Horário";
+
     try {
       await rotateMotor(1500, FIXED_MOTOR_SPEED);
-      setRotationMessage(`Comando enviado: rolagem em andamento (${direction}).`);
+      setRotationMessage(`Rolando no sentido ${activeDirection}. Próximo giro: ${nextDirection}.`);
+      setDirection(nextDirection);
     } catch (error) {
       console.error("Erro ao solicitar rolagem:", error);
       setRotationMessage("Não foi possível enviar o comando.");
     } finally {
       setIsRotatingRequest(false);
     }
-  };
-
-  const handleToggleDirection = () => {
-    setDirection((prev) => {
-      const next = prev === "Horário" ? "Anti-horário" : "Horário";
-      setRotationMessage(`Sentido invertido para: ${next}.`);
-      return next;
-    });
   };
 
   const secondaryButton = darkMode
@@ -169,14 +163,14 @@ export function ActionButtons({
               }`}
             />
             <div>
-              <span className="block text-[10px] font-bold uppercase tracking-wider opacity-60">Status do Motor</span>
+              <span className="block text-[10px] font-bold uppercase tracking-wider opacity-60">Status da Esteira</span>
               <span className="text-sm font-extrabold" style={{ fontFamily: "Quicksand, sans-serif" }}>
                 {motorState === "MOVING" ? "Ligado (Em movimento)" : "Desligado"}
               </span>
             </div>
           </div>
 
-          {/* Sentido Atual */}
+          {/* Sentido Atual (Alterna automaticamente a cada giro) */}
           <div className="text-right">
             <span className="block text-[10px] font-bold uppercase tracking-wider opacity-60">Sentido Atual</span>
             <div className="flex items-center justify-end gap-1.5 text-sm font-bold text-[#98FFD9]">
@@ -191,43 +185,23 @@ export function ActionButtons({
         </div>
       </div>
 
-      {/* ── Botões de Ação da Esteira (Ligar / Inverter Sentido) ── */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-        {/* Ativar Rolagem Manual (Ligar) */}
-        <button
-          type="button"
-          onClick={handleRotate}
-          disabled={isRotatingRequest}
-          className={`relative overflow-hidden rounded-[1.25rem] border border-white/40 bg-gradient-to-r from-[#98FFD9] to-[#6EDDC4] py-3.5 px-3 text-[#001F3F] shadow-[0_8px_24px_rgba(152,255,217,0.4)] transition-all duration-300 hover:shadow-[0_12px_32px_rgba(152,255,217,0.5)] ${
-            isRotatingRequest ? "cursor-wait opacity-60" : ""
-          }`}
-        >
-          <div className="absolute inset-0 bg-gradient-to-t from-transparent via-white/0 to-white/20 transition-all duration-300 group-hover:via-white/20" />
-          <span className="relative flex items-center justify-center gap-2">
-            <RotateCw className={`h-4 w-4 ${isRotatingRequest ? "animate-spin" : ""}`} strokeWidth={2.5} />
-            <span className="text-sm font-bold" style={{ fontFamily: "Quicksand, sans-serif" }}>
-              {isRotatingRequest ? "Rolando…" : "Ativar Rolagem"}
-            </span>
-          </span>
-        </button>
-
-        {/* Inverter Sentido/Direção */}
-        <button
-          type="button"
-          onClick={handleToggleDirection}
-          disabled={isRotatingRequest}
-          className={`relative flex items-center justify-center gap-2 overflow-hidden rounded-[1.25rem] border-2 py-3.5 px-3 transition-all duration-300 ${
-            darkMode
-              ? "border-white/20 bg-[#1a1f35]/60 text-white hover:border-[#98FFD9]/50 hover:bg-[#98FFD9]/10"
-              : "border-[#001F3F]/15 bg-white/60 text-[#001F3F] hover:border-[#001F3F]/30 hover:bg-black/5"
-          }`}
-        >
-          <ArrowLeftRight className="h-4 w-4 text-[#98FFD9]" strokeWidth={2.5} />
+      {/* ── Botão Principal: Ativar Rolagem (Inverte o sentido automaticamente a cada acionamento) ── */}
+      <button
+        type="button"
+        onClick={handleRotate}
+        disabled={isRotatingRequest}
+        className={`relative w-full overflow-hidden rounded-[1.25rem] border border-white/40 bg-gradient-to-r from-[#98FFD9] to-[#6EDDC4] py-3.5 px-4 text-[#001F3F] shadow-[0_8px_24px_rgba(152,255,217,0.4)] transition-all duration-300 hover:shadow-[0_12px_32px_rgba(152,255,217,0.5)] ${
+          isRotatingRequest ? "cursor-wait opacity-60" : ""
+        }`}
+      >
+        <div className="absolute inset-0 bg-gradient-to-t from-transparent via-white/0 to-white/20 transition-all duration-300 group-hover:via-white/20" />
+        <span className="relative flex items-center justify-center gap-2">
+          <RotateCw className={`h-4 w-4 ${isRotatingRequest ? "animate-spin" : ""}`} strokeWidth={2.5} />
           <span className="text-sm font-bold" style={{ fontFamily: "Quicksand, sans-serif" }}>
-            Inverter Sentido
+            {isRotatingRequest ? "Rolando esteira…" : "Ativar Rolagem"}
           </span>
-        </button>
-      </div>
+        </span>
+      </button>
 
       {rotationMessage && <p role="status" className={`text-center text-xs ${darkMode ? "text-white/70" : "text-[#001F3F]/70"}`}>{rotationMessage}</p>}
 
