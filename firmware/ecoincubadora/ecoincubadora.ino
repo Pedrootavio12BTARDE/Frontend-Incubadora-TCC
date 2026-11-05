@@ -32,11 +32,11 @@ const char* API_BASE_URL = "https://ecoincubadora-backend.onrender.com/api/v1";
 constexpr uint8_t DHT_PIN = 14;
 constexpr uint8_t SOIL_SENSOR_PIN = 35;
 constexpr uint8_t LAMP_RELAY_PIN = 26;
-constexpr uint8_t COOLER_RELAY_PIN = 27; // GPIO25 reservado para IN2 da L298N
+constexpr uint8_t COOLER_RELAY_PIN = 27; // GPIO25 reservado para IN4 da L298N
 
-// Pinos de controle da Ponte H (apenas IN1 e IN2)
-#define IN1_PIN 33
-#define IN2_PIN 25
+// Canal B da ponte H (L298N): IN3 no GPIO33 e IN4 no GPIO25
+#define IN3_PIN 33
+#define IN4_PIN 25
 
 constexpr uint8_t DHT_TYPE = DHT11;
 
@@ -163,18 +163,18 @@ void applyLamp(bool on) {
   digitalWrite(LAMP_RELAY_PIN, on ? relayOnLevel() : relayOffLevel());
 }
 
-// Funções de Controle de Rotação da Ponte H (apenas IN1 e IN2)
+// Funções de controle de rotação pelo canal B da ponte H (IN3 e IN4)
 void pararEsteira() {
-  digitalWrite(IN1_PIN, LOW);
-  digitalWrite(IN2_PIN, LOW);
+  digitalWrite(IN3_PIN, LOW);
+  digitalWrite(IN4_PIN, LOW);
   motorRunning = false;
 }
 
 void moverEsteira(bool sentido, int duracao_ms) {
   duracao_ms = constrain(duracao_ms, 1, 10000);
-  // Frente: IN1 = HIGH, IN2 = LOW | Trás: IN1 = LOW, IN2 = HIGH
-  digitalWrite(IN1_PIN, sentido ? HIGH : LOW);
-  digitalWrite(IN2_PIN, sentido ? LOW : HIGH);
+  // Um sentido: IN3 = HIGH, IN4 = LOW | sentido inverso: IN3 = LOW, IN4 = HIGH
+  digitalWrite(IN3_PIN, sentido ? HIGH : LOW);
+  digitalWrite(IN4_PIN, sentido ? LOW : HIGH);
   motorStopAt = millis() + static_cast<uint32_t>(duracao_ms);
   motorRunning = true;
 }
@@ -505,7 +505,7 @@ void finishMotorRotation() {
   
   Serial.printf("Motor desligado (Ponte H); comando %lu concluido. Proximo sentido: %s\n",
                 static_cast<unsigned long>(currentMotorCommandId),
-                rotateClockwise ? "Frente (IN1)" : "Trás (IN2)");
+                rotateClockwise ? "Frente (IN3)" : "Trás (IN4)");
 
   if (currentMotorCommandId != 0 && autoModeEnabled) lastAutoRollAt = millis();
   if (currentMotorCommandId != 0 && acknowledgeActuatorCommand(currentMotorCommandId)) {
@@ -527,7 +527,7 @@ void serviceAutomaticRoll(unsigned long now) {
   queueMotorState(1);
   Serial.printf("Rolagem automatica Ponte H: %lu ms, sentido=%s\n",
                 static_cast<unsigned long>(DEFAULT_MOTOR_DURATION_MS),
-                rotateClockwise ? "Frente (IN1)" : "Trás (IN2)");
+                rotateClockwise ? "Frente (IN3)" : "Trás (IN4)");
 }
 void pollMotorCommands() {
   if (WiFi.status() != WL_CONNECTED || motorRunning) return;
@@ -598,7 +598,7 @@ void pollMotorCommands() {
     queueMotorState(1);
 
     Serial.printf("Esteira Ponte H acionada por %d ms, sentido=%s; comando %lu\n",
-                  durationMs, rotateClockwise ? "Frente (IN1)" : "Trás (IN2)",
+                  durationMs, rotateClockwise ? "Frente (IN3)" : "Trás (IN4)",
                   static_cast<unsigned long>(commandId));
     break;
   }
@@ -706,9 +706,9 @@ void setup() {
   pinMode(LAMP_RELAY_PIN, OUTPUT);
   digitalWrite(LAMP_RELAY_PIN, relayOffLevel());
 
-  // Configuração dos pinos da Ponte H (apenas IN1 e IN2)
-  pinMode(IN1_PIN, OUTPUT);
-  pinMode(IN2_PIN, OUTPUT);
+  // Configuração dos pinos do canal B da ponte H (IN3 e IN4)
+  pinMode(IN3_PIN, OUTPUT);
+  pinMode(IN4_PIN, OUTPUT);
   pararEsteira();
   motorStatusQueue = xQueueCreate(4, sizeof(MotorStatusMessage));
   if (motorStatusQueue && xTaskCreatePinnedToCore(reportMotorStateTask, "MotorStatus", 4096, nullptr, 1, nullptr, 0) != pdPASS) {
