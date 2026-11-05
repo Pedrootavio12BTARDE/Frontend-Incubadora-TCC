@@ -251,7 +251,7 @@ router.post('/motor/report', async (req, res) => {
     });
     const action = state;
     const payload = JSON.stringify({ speed });
-    if (previous?.action !== action || previous.payload !== payload) {
+    if (previous?.action !== action || previous?.payload !== payload) {
       const created = await prisma.actuatorLog.create({
         data: { actuator: 'motor', action, payload },
       });
@@ -305,8 +305,8 @@ router.patch('/motor/mode', requireAuth, async (req, res) => {
 });
 router.post('/motor/rotate', requireAuth, async (req, res) => {
   try {
-    const durationMs = req.body?.durationMs === undefined ? 1500 : Number(req.body.durationMs);
-    const speed = req.body?.speed === undefined ? 105 : Number(req.body.speed);
+    const durationMs = req.body?.durationMs === undefined ? 1500 : Number(req.body?.durationMs);
+    const speed = req.body?.speed === undefined ? 140 : Number(req.body.speed);
     if (!Number.isInteger(durationMs) || durationMs < 100 || durationMs > 10000) {
       return res.status(400).json({ error: 'durationMs must be an integer between 100 and 10000' });
     }

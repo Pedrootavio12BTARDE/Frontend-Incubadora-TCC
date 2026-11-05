@@ -1,4 +1,4 @@
-import { FileText, RotateCw, Repeat2 } from "lucide-react";
+import { FileText, RotateCw, RotateCcw, Repeat2, ArrowLeftRight } from "lucide-react";
 import { useEffect, useState } from "react";
 import { getMotorMode, getMotorState, rotateMotor, setMotorAutoMode } from "../../services/api";
 import { socketService } from "../../services/socketio";
@@ -10,6 +10,8 @@ interface ActionButtonsProps {
   onRequireAuth?: () => void;
 }
 
+const FIXED_MOTOR_SPEED = 140; // Velocidade fixa suave da esteira (PWM)
+
 export function ActionButtons({
   onNavigateToReports,
   darkMode = false,
@@ -18,8 +20,8 @@ export function ActionButtons({
 }: ActionButtonsProps) {
   const [isRotatingRequest, setIsRotatingRequest] = useState(false);
   const [rotationMessage, setRotationMessage] = useState("");
-  const [motorSpeed, setMotorSpeed] = useState(105);
   const [motorState, setMotorState] = useState<"MOVING" | "STOPPED">("STOPPED");
+  const [direction, setDirection] = useState<"Horário" | "Anti-horário">("Horário");
   const [autoRoll, setAutoRoll] = useState(false);
   const [isLoadingMode, setIsLoadingMode] = useState(true);
   const [isSavingMode, setIsSavingMode] = useState(false);
@@ -44,6 +46,10 @@ export function ActionButtons({
       }
       if (data?.actuator === "motor" && (data.state === "MOVING" || data.state === "STOPPED")) {
         setMotorState(data.state);
+        // Quando a esteira conclui a rolagem e para, o sentido alterna para a próxima
+        if (data.state === "STOPPED") {
+          setDirection((prev) => (prev === "Horário" ? "Anti-horário" : "Horário"));
+        }
       }
     };
 
@@ -89,8 +95,8 @@ export function ActionButtons({
     setIsRotatingRequest(true);
     setRotationMessage("");
     try {
-      await rotateMotor(1500, motorSpeed);
-      setRotationMessage("Comando enviado: rolagem em andamento.");
+      await rotateMotor(1500, FIXED_MOTOR_SPEED);
+      setRotationMessage(`Comando enviado: rolagem em andamento (${direction}).`);
     } catch (error) {
       console.error("Erro ao solicitar rolagem:", error);
       setRotationMessage("Não foi possível enviar o comando.");
@@ -99,12 +105,21 @@ export function ActionButtons({
     }
   };
 
+  const handleToggleDirection = () => {
+    setDirection((prev) => {
+      const next = prev === "Horário" ? "Anti-horário" : "Horário";
+      setRotationMessage(`Sentido invertido para: ${next}.`);
+      return next;
+    });
+  };
+
   const secondaryButton = darkMode
-    ? "bg-[#1a1f35]/60 text-white"
-    : "bg-white/60 text-[#001F3F]";
+    ? "bg-[#1a1f35]/60 text-white hover:border-[#98FFD9]/50"
+    : "bg-white/60 text-[#001F3F] hover:border-[#001F3F]/30";
 
   return (
     <div className="pt-2 space-y-2.5">
+      {/* ── Modo Automático (Liga/Desliga Rolagem a cada 4h) ── */}
       <button
         type="button"
         onClick={handleToggleAutoMode}
@@ -120,7 +135,7 @@ export function ActionButtons({
       >
         <span className="flex items-center justify-between gap-3">
           <span className="flex items-center gap-2">
-            <Repeat2 className="h-4 w-4" />
+            <Repeat2 className="h-4 w-4 text-[#98FFD9]" />
             <span className="text-sm font-bold" style={{ fontFamily: "Quicksand, sans-serif" }}>
               {isLoadingMode ? "Carregando modo automático…" : "Modo automático"}
             </span>
@@ -130,43 +145,93 @@ export function ActionButtons({
           </span>
         </span>
         {autoRoll && !isLoadingMode && (
-          <span className="mt-2 block text-xs font-medium">Automático ligado — rolagem programada a cada 4 horas.</span>
+          <span className="mt-2 block text-xs font-medium opacity-80">Automático ligado — rolagem programada a cada 4 horas.</span>
         )}
       </button>
       {modeMessage && <p role="status" className={`text-center text-xs ${darkMode ? "text-white/70" : "text-[#001F3F]/70"}`}>{modeMessage}</p>}
 
-      <div className="rounded-2xl border border-slate-300/50 bg-white/60 px-4 py-3 text-slate-800">
-        <div className="mb-2 flex items-center justify-between gap-3 text-xs font-semibold">
-          <span>Esteira: {motorState === "MOVING" ? "MOVENDO" : "PARADO"}</span>
-          <span>Velocidade {motorSpeed}/255</span>
-        </div>
-        <input
-          aria-label="Velocidade PWM da esteira"
-          type="range"
-          min={60}
-          max={180}
-          step={5}
-          value={motorSpeed}
-          onChange={(event) => setMotorSpeed(Number(event.target.value))}
-          className="w-full accent-[#16835e]"
-        />
-      </div>
-      <button
-        type="button"
-        onClick={handleRotate}
-        disabled={isRotatingRequest}
-        className={`relative w-full overflow-hidden rounded-[1.25rem] border border-white/40 bg-gradient-to-r from-[#98FFD9] to-[#6EDDC4] py-3.5 text-[#001F3F] shadow-[0_8px_24px_rgba(152,255,217,0.4)] transition-all duration-300 hover:shadow-[0_12px_32px_rgba(152,255,217,0.5)] ${isRotatingRequest ? "cursor-wait opacity-60" : ""}`}
+      {/* ── Status do Motor e Sentido Atual (Sem controle manual de velocidade) ── */}
+      <div
+        className={`rounded-2xl border p-4 transition-all duration-300 ${
+          darkMode
+            ? "border-white/10 bg-[#1a1f35]/60 text-white"
+            : "border-[#001F3F]/15 bg-white/70 text-[#001F3F] shadow-sm"
+        }`}
       >
-        <div className="absolute inset-0 bg-gradient-to-t from-transparent via-white/0 to-white/20 transition-all duration-300 group-hover:via-white/20" />
-        <span className="relative flex items-center justify-center gap-2">
-          <RotateCw className="h-4 w-4" strokeWidth={2.5} />
-          <span className="text-sm font-bold" style={{ fontFamily: "Quicksand, sans-serif" }}>
-            {isRotatingRequest ? "Enviando…" : "Ativar Rolagem Manual"}
+        <div className="flex items-center justify-between gap-3">
+          {/* Status Ligado / Desligado */}
+          <div className="flex items-center gap-2.5">
+            <span
+              className={`h-3 w-3 rounded-full transition-all duration-300 ${
+                motorState === "MOVING"
+                  ? "bg-emerald-400 shadow-[0_0_10px_rgba(52,211,153,0.9)] animate-pulse"
+                  : "bg-slate-400/50"
+              }`}
+            />
+            <div>
+              <span className="block text-[10px] font-bold uppercase tracking-wider opacity-60">Status do Motor</span>
+              <span className="text-sm font-extrabold" style={{ fontFamily: "Quicksand, sans-serif" }}>
+                {motorState === "MOVING" ? "Ligado (Em movimento)" : "Desligado"}
+              </span>
+            </div>
+          </div>
+
+          {/* Sentido Atual */}
+          <div className="text-right">
+            <span className="block text-[10px] font-bold uppercase tracking-wider opacity-60">Sentido Atual</span>
+            <div className="flex items-center justify-end gap-1.5 text-sm font-bold text-[#98FFD9]">
+              {direction === "Horário" ? (
+                <RotateCw className="h-3.5 w-3.5 text-emerald-400" />
+              ) : (
+                <RotateCcw className="h-3.5 w-3.5 text-cyan-400" />
+              )}
+              <span className={darkMode ? "text-white" : "text-[#001F3F]"}>{direction}</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* ── Botões de Ação da Esteira (Ligar / Inverter Sentido) ── */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+        {/* Ativar Rolagem Manual (Ligar) */}
+        <button
+          type="button"
+          onClick={handleRotate}
+          disabled={isRotatingRequest}
+          className={`relative overflow-hidden rounded-[1.25rem] border border-white/40 bg-gradient-to-r from-[#98FFD9] to-[#6EDDC4] py-3.5 px-3 text-[#001F3F] shadow-[0_8px_24px_rgba(152,255,217,0.4)] transition-all duration-300 hover:shadow-[0_12px_32px_rgba(152,255,217,0.5)] ${
+            isRotatingRequest ? "cursor-wait opacity-60" : ""
+          }`}
+        >
+          <div className="absolute inset-0 bg-gradient-to-t from-transparent via-white/0 to-white/20 transition-all duration-300 group-hover:via-white/20" />
+          <span className="relative flex items-center justify-center gap-2">
+            <RotateCw className={`h-4 w-4 ${isRotatingRequest ? "animate-spin" : ""}`} strokeWidth={2.5} />
+            <span className="text-sm font-bold" style={{ fontFamily: "Quicksand, sans-serif" }}>
+              {isRotatingRequest ? "Rolando…" : "Ativar Rolagem"}
+            </span>
           </span>
-        </span>
-      </button>
+        </button>
+
+        {/* Inverter Sentido/Direção */}
+        <button
+          type="button"
+          onClick={handleToggleDirection}
+          disabled={isRotatingRequest}
+          className={`relative flex items-center justify-center gap-2 overflow-hidden rounded-[1.25rem] border-2 py-3.5 px-3 transition-all duration-300 ${
+            darkMode
+              ? "border-white/20 bg-[#1a1f35]/60 text-white hover:border-[#98FFD9]/50 hover:bg-[#98FFD9]/10"
+              : "border-[#001F3F]/15 bg-white/60 text-[#001F3F] hover:border-[#001F3F]/30 hover:bg-black/5"
+          }`}
+        >
+          <ArrowLeftRight className="h-4 w-4 text-[#98FFD9]" strokeWidth={2.5} />
+          <span className="text-sm font-bold" style={{ fontFamily: "Quicksand, sans-serif" }}>
+            Inverter Sentido
+          </span>
+        </button>
+      </div>
+
       {rotationMessage && <p role="status" className={`text-center text-xs ${darkMode ? "text-white/70" : "text-[#001F3F]/70"}`}>{rotationMessage}</p>}
 
+      {/* ── Ver Relatórios ── */}
       <button
         type="button"
         onClick={onNavigateToReports}

@@ -156,7 +156,7 @@ export async function setFan(state: 'on' | 'off' | 'auto'): Promise<{ success: b
   });
 }
 
-export async function rotateMotor(durationMs: number = 1500, speed: number = 105): Promise<{
+export async function rotateMotor(durationMs: number = 1500, speed: number = 140): Promise<{
   ok: boolean;
   command: { id: number; durationMs: number; speed: number; status: string };
 }> {
