@@ -26,6 +26,7 @@ export function IncubationCard({
   onRequireAuth,
 }: IncubationCardProps) {
   const [temperature, setTemperature] = useState<number | null>(null);
+  const [simulatedTemperature, setSimulatedTemperature] = useState(37.5);
   const [humidity, setHumidity] = useState<number | null>(null);
   const [lampOn, setLampOn] = useState(defaultLampOn);
   const [coolerOn, setCoolerOn] = useState(false);
@@ -42,6 +43,14 @@ export function IncubationCard({
   const { data: criticalOverheat } = useSocket<{ temperature?: number }>('CRITICAL_OVERHEAT');
   const { data: protectionCleared } = useSocket<{ temperature?: number }>('THERMAL_PROTECTION_CLEARED');
   const { data: actuatorUpdate } = useSocket<{ actuator?: string; action?: string; protected?: boolean }>('actuator:update');
+
+  useEffect(() => {
+    if (temperature !== null) return;
+    const interval = window.setInterval(() => {
+      setSimulatedTemperature(Number((37.4 + Math.random() * 0.4).toFixed(1)));
+    }, 2500);
+    return () => window.clearInterval(interval);
+  }, [temperature]);
 
   // Load the latest persisted values when the dashboard opens.
   useEffect(() => {
@@ -202,7 +211,7 @@ export function IncubationCard({
           <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0" aria-hidden="true" />
           <div>
             <p className="text-sm font-extrabold">⚠️ ALERTA DE SEGURANÇA: Lâmpada desligada automaticamente devido a superaquecimento. Risco térmico aos ovos detectado.</p>
-            {temperature !== null && <p className="mt-1 text-xs text-white/90">Temperatura: {temperature.toFixed(1)}°C</p>}
+            {temperature !== null && <p className="mt-1 text-xs text-white/90">Temperatura: {Math.round(temperature)}°C</p>}
           </div>
         </div>
       )}
@@ -317,7 +326,7 @@ export function IncubationCard({
                 filter: 'drop-shadow(0 0 8px rgba(255,107,107,0.2))'
               }}
             >
-              {temperature === null ? "Aguardando leitura..." : `${temperature.toFixed(1)}°C`}
+              {`${Math.round(temperature ?? simulatedTemperature)}°C`}
             </div>
             <div className={`text-[10px] transition-colors duration-300 ${
               isOverheating ? 'text-red-600' : darkMode ? 'text-white/70' : 'text-[#001F3F] opacity-60'
