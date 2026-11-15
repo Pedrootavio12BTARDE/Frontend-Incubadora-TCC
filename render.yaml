@@ -1,6 +1,6 @@
 services:
   - type: web
-    name: ecoincubadora-backend
+    name: frontend-incubadora-tcc
     runtime: node
     plan: free
     rootDir: backend

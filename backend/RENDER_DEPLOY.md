@@ -19,7 +19,7 @@ O endpoint `/api/v1/auth/register` permite criar uma conta para a tela de login.
 No provedor do frontend, configure a variável de build:
 
 ```text
-VITE_BACKEND_URL=https://NOME-DO-SERVICO.onrender.com
+VITE_BACKEND_URL=https://frontend-incubadora-tcc.onrender.com
 ```
 
 Não inclua `/api/v1` nem uma barra final. Depois, faça novo build/deploy do frontend. Garanta que a mesma origem do frontend esteja em `ALLOWED_ORIGINS` no serviço do Render.

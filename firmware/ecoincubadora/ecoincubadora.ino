@@ -27,7 +27,7 @@
 #define DEVICE_API_TOKEN ""
 #endif
 
-const char* API_BASE_URL = "https://ecoincubadora-backend.onrender.com/api/v1";
+const char* API_BASE_URL = "https://frontend-incubadora-tcc.onrender.com/api/v1";
 
 constexpr uint8_t DHT_PIN = 14;
 constexpr uint8_t SOIL_SENSOR_PIN = 35;

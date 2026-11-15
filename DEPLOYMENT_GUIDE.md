@@ -9,7 +9,7 @@ O repositório inclui `render.yaml` para publicar o backend no Render. O SQLite 
 3. Crie um Blueprint conectado ao repositório e use o `render.yaml` da raiz.
 4. Configure `DATABASE_URL` com a **Internal Database URL** do PostgreSQL e `ALLOWED_ORIGINS` com a origem do frontend, como `https://seu-site.vercel.app`.
 5. O Render gera `JWT_SECRET` automaticamente. O Blueprint executa a migração PostgreSQL durante a inicialização.
-6. Depois do deploy, teste `https://NOME-DO-SERVICO.onrender.com/api/v1/status`; deve retornar `{"ok":true}`.
+6. Depois do deploy, teste `https://frontend-incubadora-tcc.onrender.com/api/v1/status`; deve retornar `{"ok":true}`.
 
 Consulte [backend/RENDER_DEPLOY.md](backend/RENDER_DEPLOY.md) para preparar o ESP32.
 
