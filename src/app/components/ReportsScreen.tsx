@@ -9,6 +9,10 @@ interface ReportsScreenProps {
   instanceId?: string;
 }
 
+function validTemperature(value: unknown): number | null {
+  return typeof value === "number" && Number.isFinite(value) && value > 1 ? value : null;
+}
+
 // ── Realistic baseline data for 24h incubation demonstration ──────────────────
 function getRealisticBaselineReadings(): SensorReading[] {
   const now = Date.now();
@@ -269,8 +273,10 @@ export function ReportsScreen({ darkMode = false, isDesktop = false }: ReportsSc
   }, []);
 
   // Dados calculados para os gráficos
-  const activeReadings = sensorReadings.length ? sensorReadings : getRealisticBaselineReadings();
-  const temperatures = activeReadings.flatMap((r) => (typeof r.temperature === "number" ? [r.temperature] : []));
+  const activeReadings = sensorReadings.length
+    ? sensorReadings.map((reading) => ({ ...reading, temperature: validTemperature(reading.temperature) }))
+    : getRealisticBaselineReadings();
+  const temperatures = activeReadings.flatMap((r) => (typeof r.temperature === "number" && r.temperature > 1 ? [r.temperature] : []));
   const humidities = activeReadings.flatMap((r) => (typeof r.humidity === "number" ? [r.humidity] : []));
 
   const averageTemperature = temperatures.length

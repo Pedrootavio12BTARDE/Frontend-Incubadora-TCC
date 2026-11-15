@@ -40,14 +40,39 @@ const navItems: { id: Screen; label: string; Icon: typeof Home }[] = [
 export function DesktopApp() {
   const [lampOn, setLampOn]         = useState(false);
   const [darkMode, setDarkMode]     = useState(true);
-  const [currentScreen, setCurrentScreen] = useState<Screen>("dashboard");
+  const [currentScreen, setCurrentScreen] = useState<Screen>("login");
   const [sidebarOpen, setSidebarOpen]     = useState(false);
-  const [isAuthenticated, setIsAuthenticated] = useState(() => Boolean(getAuthToken()));
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [isCheckingSession, setIsCheckingSession] = useState(() => Boolean(getAuthToken()));
   const [user, setUser] = useState<AuthUser | null>(() => getStoredAuthUser());
 
   useEffect(() => {
-    if (!getAuthToken()) return;
-    refreshProfile().then(setUser).catch(() => {});
+    if (!getAuthToken()) {
+      setCurrentScreen("login");
+      setIsCheckingSession(false);
+      return;
+    }
+
+    let active = true;
+    refreshProfile()
+      .then((profile) => {
+        if (!active) return;
+        setUser(profile);
+        setIsAuthenticated(true);
+        setCurrentScreen("dashboard");
+      })
+      .catch(() => {
+        if (!active) return;
+        clearAuthToken();
+        setUser(null);
+        setIsAuthenticated(false);
+        setCurrentScreen("login");
+      })
+      .finally(() => {
+        if (active) setIsCheckingSession(false);
+      });
+
+    return () => { active = false; };
   }, []);
 
   // Sincroniza a classe .dark com o elemento HTML raiz
@@ -64,7 +89,7 @@ export function DesktopApp() {
     void socketService.refreshAuthentication().catch((error) => console.error("Erro ao atualizar autenticação do Socket.io:", error));
     setIsAuthenticated(false);
     setUser(null);
-    setCurrentScreen("dashboard");
+    setCurrentScreen("login");
     setSidebarOpen(false);
   };
 
@@ -72,6 +97,11 @@ export function DesktopApp() {
   const navigate = (screen: Screen) => {
     if (screen === "login" && isAuthenticated) {
       handleLogout();
+      return;
+    }
+    if (screen === "dashboard" && !isAuthenticated) {
+      setCurrentScreen("login");
+      setSidebarOpen(false);
       return;
     }
     setCurrentScreen(screen);
@@ -94,6 +124,16 @@ export function DesktopApp() {
   const sidebarBg = dm
     ? "bg-[#0a1628]/95 border-[#98FFD9]/10"
     : "bg-white/80 border-black/10";
+
+  if (isCheckingSession) {
+    return (
+      <div className={`w-full h-full min-h-screen flex items-center justify-center ${bg}`}>
+        <p className="text-sm font-semibold" style={{ fontFamily: "Quicksand, sans-serif" }}>
+          Validando sua sessÃ£o...
+        </p>
+      </div>
+    );
+  }
 
   return (
     <div className={`w-full h-full flex flex-col transition-colors duration-500 ${bg}`}>
@@ -235,13 +275,12 @@ export function DesktopApp() {
             <LoginScreen
               darkMode={dm}
               isDesktop={true}
-              onBack={() => navigate("dashboard")}
               onToggleDarkMode={() => setDarkMode(d => !d)}
               onLoginSuccess={(loggedInUser) => {
                 setIsAuthenticated(true);
                 void socketService.refreshAuthentication().catch((error) => console.error("Erro ao atualizar autenticação do Socket.io:", error));
                 setUser(loggedInUser);
-                navigate("dashboard");
+                setCurrentScreen("dashboard");
               }}
             />
 

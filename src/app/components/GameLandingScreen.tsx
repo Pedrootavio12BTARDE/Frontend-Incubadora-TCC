@@ -1,8 +1,12 @@
-import { Play, Thermometer, Droplets, Zap, Shield, Sword, Info } from "lucide-react";
+import { useState } from "react";
+import { Play, Thermometer, Droplets, Zap, Shield, Sword, Video } from "lucide-react";
 import finnImg from "../../imports/image-3.png";
 import logoImg from "../../imports/image-4.png";
 import bubblegumImg from "../../imports/image-5.png";
 import enemyImg from "../../imports/image-6.png";
+
+// Cole aqui o link do vídeo de gameplay para abrir em uma nova aba.
+const GAMEPLAY_VIDEO_URL = "";
 
 interface GameLandingScreenProps {
   darkMode?: boolean;
@@ -10,6 +14,16 @@ interface GameLandingScreenProps {
 }
 
 export function GameLandingScreen({ darkMode = false, isDesktop = false }: GameLandingScreenProps) {
+  const [videoLinkNotice, setVideoLinkNotice] = useState(false);
+
+  const openGameplayVideo = () => {
+    if (!GAMEPLAY_VIDEO_URL.trim()) {
+      setVideoLinkNotice(true);
+      return;
+    }
+    window.open(GAMEPLAY_VIDEO_URL, "_blank", "noopener,noreferrer");
+  };
+
   return (
     <div className="min-h-full overflow-y-auto scrollbar-hide bg-gradient-to-br from-[#1a0b2e] via-[#2d1b4e] to-[#0f0520] relative">
       {/* Pixel Art Stars Background - Seamless */}
@@ -139,19 +153,24 @@ export function GameLandingScreen({ darkMode = false, isDesktop = false }: GameL
                       <div className="absolute bottom-0 left-0 right-0 h-1 bg-orange-700" />
                     </a>
 
-                    {/* Purple Info Button */}
-                    <button className="flex-1 relative overflow-hidden group">
-                      <div className="absolute inset-0 bg-gradient-to-br from-purple-500 to-purple-600 rounded-lg" />
+                    {/* Gameplay video button */}
+                    <button type="button" onClick={openGameplayVideo} className="flex-1 relative overflow-hidden group">
+                      <div className="absolute inset-0 bg-gradient-to-br from-purple-500 to-fuchsia-600 rounded-lg" />
                       <div className="absolute inset-0 bg-black/20 group-hover:bg-black/0 transition-all duration-200" />
                       <div className="relative px-6 py-3 flex items-center justify-center gap-2">
-                        <Info className="w-5 h-5 text-white" strokeWidth={2.5} />
+                        <Video className="w-5 h-5 text-white" strokeWidth={2.5} />
                         <span className="text-white text-sm uppercase tracking-wide" style={{ fontFamily: 'Quicksand, sans-serif', fontWeight: 900 }}>
-                          Info
+                          Assistir Gameplay
                         </span>
                       </div>
-                      <div className="absolute bottom-0 left-0 right-0 h-1 bg-purple-700" />
+                      <div className="absolute bottom-0 left-0 right-0 h-1 bg-fuchsia-800" />
                     </button>
                   </div>
+                  {videoLinkNotice && (
+                    <p role="status" className="mt-2 text-center text-xs text-purple-200">
+                      Adicione o link do vídeo em GAMEPLAY_VIDEO_URL para abrir a gameplay.
+                    </p>
+                  )}
 
                   {/* Status Indicator */}
                   <div className="mt-4 pt-4 border-t border-white/10 flex items-center justify-center gap-2">

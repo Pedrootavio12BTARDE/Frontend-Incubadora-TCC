@@ -15,7 +15,7 @@ interface LoginScreenProps {
 export function LoginScreen({ darkMode = false, isDesktop = false, onBack, onToggleDarkMode, onLoginSuccess }: LoginScreenProps) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [isSignUp, setIsSignUp] = useState(false);
+  const [isSignUp, setIsSignUp] = useState(true);
   const [confirmPassword, setConfirmPassword] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
