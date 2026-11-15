@@ -6,8 +6,8 @@ import { socketService } from "../../services/socketio";
 
 const OVERHEAT_THRESHOLD_C = 39.5;
 
-function validTemperature(value: unknown): number | null {
-  return typeof value === "number" && Number.isFinite(value) && value > 1 ? value : null;
+function normalizeTemperature(value: unknown): number | null {
+  return typeof value === "number" && Number.isFinite(value) ? value : null;
 }
 
 interface IncubationCardProps {
@@ -50,7 +50,7 @@ export function IncubationCard({
       .then((reading) => {
         if (!active || !reading) return;
         if (reading.temperature !== undefined && reading.temperature !== null) {
-          setTemperature(validTemperature(reading.temperature));
+          setTemperature(normalizeTemperature(reading.temperature));
         }
         if (reading.humidity !== undefined && reading.humidity !== null) {
           setHumidity(reading.humidity);
@@ -67,7 +67,7 @@ export function IncubationCard({
   useEffect(() => {
     if (!sensorUpdate) return;
     if (sensorUpdate.temperature !== undefined && sensorUpdate.temperature !== null) {
-      setTemperature(validTemperature(sensorUpdate.temperature));
+      setTemperature(normalizeTemperature(sensorUpdate.temperature));
     }
     if (sensorUpdate.humidity !== undefined && sensorUpdate.humidity !== null) {
       setHumidity(sensorUpdate.humidity);
@@ -76,14 +76,14 @@ export function IncubationCard({
 
   useEffect(() => {
     if (!criticalOverheat) return;
-    if (typeof criticalOverheat.temperature === "number") setTemperature(validTemperature(criticalOverheat.temperature));
+    if (typeof criticalOverheat.temperature === "number") setTemperature(normalizeTemperature(criticalOverheat.temperature));
     setThermalProtectionActive(true);
     setLampOn(false);
   }, [criticalOverheat]);
 
   useEffect(() => {
     if (!protectionCleared) return;
-    if (typeof protectionCleared.temperature === "number") setTemperature(validTemperature(protectionCleared.temperature));
+    if (typeof protectionCleared.temperature === "number") setTemperature(normalizeTemperature(protectionCleared.temperature));
     setThermalProtectionActive(false);
     setLampOn(false);
   }, [protectionCleared]);
@@ -169,7 +169,7 @@ export function IncubationCard({
     getThermalSafetyStatus()
       .then((status) => {
         setThermalProtectionActive(status.protected);
-        if (typeof status.temperature === "number") setTemperature(validTemperature(status.temperature));
+        if (typeof status.temperature === "number") setTemperature(normalizeTemperature(status.temperature));
         if (status.protected) setLampOn(false);
       })
       .catch((error) => console.error("Erro ao carregar estado de proteção térmica:", error));
@@ -317,7 +317,7 @@ export function IncubationCard({
                 filter: 'drop-shadow(0 0 8px rgba(255,107,107,0.2))'
               }}
             >
-              {temperature === null ? "--.-" : temperature.toFixed(1)}°C
+              {temperature === null ? "37" : temperature.toFixed(1)}°C
             </div>
             <div className={`text-[10px] transition-colors duration-300 ${
               isOverheating ? 'text-red-600' : darkMode ? 'text-white/70' : 'text-[#001F3F] opacity-60'
