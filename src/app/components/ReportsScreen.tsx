@@ -14,18 +14,20 @@ function normalizeTemperature(value: unknown): number | null {
 }
 
 // ── Realistic baseline data for 24h incubation demonstration ──────────────────
-function getRealisticBaselineReadings(): SensorReading[] {
-  const now = Date.now();
-  const step = 2 * 60 * 60 * 1000; // a cada 2 horas
-  const temps = [37.5, 37.6, 37.4, 37.7, 37.6, 37.8, 37.5, 37.6, 37.7, 37.5, 37.6, 37.7];
-  const humidities = [60.1, 59.8, 60.5, 61.0, 60.2, 59.5, 60.0, 60.4, 60.1, 59.9, 60.3, 60.2];
+function mergeSensorReadings(current: SensorReading[], incoming: SensorReading[]): SensorReading[] {
+  const readingsByKey = new Map<string, SensorReading>();
+  [...current, ...incoming].forEach((reading, index) => {
+    const key = reading.id != null
+      ? `id:${reading.id}`
+      : reading.createdAt
+        ? `date:${reading.createdAt}`
+        : `entry:${index}`;
+    readingsByKey.set(key, reading);
+  });
 
-  return temps.map((temp, i) => ({
-    id: i + 1,
-    temperature: temp,
-    humidity: humidities[i],
-    createdAt: new Date(now - (11 - i) * step).toISOString(),
-  }));
+  return [...readingsByKey.values()]
+    .sort((a, b) => (Date.parse(a.createdAt ?? "") || 0) - (Date.parse(b.createdAt ?? "") || 0))
+    .slice(-100);
 }
 
 // ── Custom SVG line chart ───────────────────────────────────────────────────
@@ -117,6 +119,11 @@ function LineChartSVG({
 
       {/* Line */}
       {linePath && <path d={linePath} fill="none" stroke={strokeColor} strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round" />}
+      {points.length === 0 && (
+        <text x={W / 2} y={H / 2} textAnchor="middle" fontSize={11} fill={textColor} fontFamily="Quicksand, sans-serif">
+          Sem leituras do sensor
+        </text>
+      )}
 
       {/* Dots */}
       {points.map((p, i) => (
@@ -224,7 +231,7 @@ export function ReportsScreen({ darkMode = false, isDesktop = false }: ReportsSc
     brownEggs: 105,
     lastColor: "Marrom",
   });
-  const [sensorReadings, setSensorReadings] = useState<SensorReading[]>(getRealisticBaselineReadings());
+  const [sensorReadings, setSensorReadings] = useState<SensorReading[]>([]);
   const [selectedMetric, setSelectedMetric] = useState<"temperature" | "humidity">("temperature");
 
   const { data: sensorUpdate } = useSocket<SensorReading>("sensor:update");
@@ -238,9 +245,7 @@ export function ReportsScreen({ darkMode = false, isDesktop = false }: ReportsSc
 
     getSensorHistory()
       .then(({ readings }) => {
-        if (readings && readings.length >= 4) {
-          setSensorReadings(readings);
-        }
+        if (readings) setSensorReadings((current) => mergeSensorReadings(current, readings));
       })
       .catch((error) => console.error("Erro ao carregar histórico dos sensores:", error));
   }, []);
@@ -248,12 +253,7 @@ export function ReportsScreen({ darkMode = false, isDesktop = false }: ReportsSc
   // Escuta atualizações via WebSocket
   useEffect(() => {
     if (!sensorUpdate) return;
-    setSensorReadings((current) => {
-      if (sensorUpdate.createdAt && current.some((r) => r.createdAt === sensorUpdate.createdAt)) {
-        return current;
-      }
-      return [...current, sensorUpdate].slice(-100);
-    });
+    setSensorReadings((current) => mergeSensorReadings(current, [sensorUpdate]));
   }, [sensorUpdate]);
 
   useEffect(() => {
@@ -273,22 +273,20 @@ export function ReportsScreen({ darkMode = false, isDesktop = false }: ReportsSc
   }, []);
 
   // Dados calculados para os gráficos
-  const activeReadings = sensorReadings.length
-    ? sensorReadings.map((reading) => ({ ...reading, temperature: normalizeTemperature(reading.temperature) }))
-    : getRealisticBaselineReadings();
+  const activeReadings = sensorReadings.map((reading) => ({ ...reading, temperature: normalizeTemperature(reading.temperature) }));
   const temperatures = activeReadings.flatMap((r) => (typeof r.temperature === "number" && Number.isFinite(r.temperature) ? [r.temperature] : []));
   const humidities = activeReadings.flatMap((r) => (typeof r.humidity === "number" ? [r.humidity] : []));
 
   const averageTemperature = temperatures.length
     ? temperatures.reduce((sum, v) => sum + v, 0) / temperatures.length
-    : 37.6;
+    : null;
   const temperatureVariation = temperatures.length
     ? Math.max(...temperatures) - Math.min(...temperatures)
-    : 0.3;
+    : null;
 
   const averageHumidity = humidities.length
     ? humidities.reduce((sum, v) => sum + v, 0) / humidities.length
-    : 60.2;
+    : null;
 
   const totalRegisteredEggs = production.whiteEggs + production.brownEggs;
 
@@ -300,8 +298,8 @@ export function ReportsScreen({ darkMode = false, isDesktop = false }: ReportsSc
   // Logs recentes para a timeline de atividades
   const activityLog = [...activeReadings].reverse().slice(0, 6).map((reading, idx) => ({
     id: idx,
-    temp: typeof reading.temperature === "number" ? `${reading.temperature.toFixed(1)}°C` : "37.6°C",
-    hum: typeof reading.humidity === "number" ? `${reading.humidity.toFixed(1)}%` : "60.0%",
+    temp: typeof reading.temperature === "number" ? `${reading.temperature.toFixed(1)}°C` : "Sem dado",
+    hum: typeof reading.humidity === "number" ? `${reading.humidity.toFixed(1)}%` : "Sem dado",
     time: reading.createdAt ? new Date(reading.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "Agora",
   }));
 
@@ -341,7 +339,7 @@ export function ReportsScreen({ darkMode = false, isDesktop = false }: ReportsSc
             <span className="text-[11px] font-bold" style={{ fontFamily: 'Quicksand, sans-serif' }}>Temp. Média</span>
           </div>
           <div className={`text-xl font-black ${heading}`} style={{ fontFamily: 'Montserrat, sans-serif' }}>
-            {averageTemperature.toFixed(1)}°C
+            {averageTemperature === null ? "Sem dados" : `${averageTemperature.toFixed(1)}°C`}
           </div>
           <span className="text-[10px] text-[#98FFD9] font-bold">Faixa Ideal (37.5°C)</span>
         </div>
@@ -354,7 +352,7 @@ export function ReportsScreen({ darkMode = false, isDesktop = false }: ReportsSc
             <span className="text-[11px] font-bold" style={{ fontFamily: 'Quicksand, sans-serif' }}>Umidade Média</span>
           </div>
           <div className={`text-xl font-black ${heading}`} style={{ fontFamily: 'Montserrat, sans-serif' }}>
-            {averageHumidity.toFixed(1)}%
+            {averageHumidity === null ? "Sem dados" : `${averageHumidity.toFixed(1)}%`}
           </div>
           <span className="text-[10px] text-[#98FFD9] font-bold">Estável (DHT22)</span>
         </div>
@@ -447,14 +445,18 @@ export function ReportsScreen({ darkMode = false, isDesktop = false }: ReportsSc
             <div className="text-center">
               <p className={`text-[10px] mb-0.5 ${sub}`} style={{ fontFamily: "Quicksand, sans-serif" }}>Média</p>
               <p className={`text-base font-bold ${heading}`} style={{ fontFamily: "Montserrat, sans-serif" }}>
-                {selectedMetric === "temperature" ? `${averageTemperature.toFixed(1)}°C` : `${averageHumidity.toFixed(1)}%`}
+                {selectedMetric === "temperature"
+                  ? averageTemperature === null ? "Sem dados" : `${averageTemperature.toFixed(1)}°C`
+                  : averageHumidity === null ? "Sem dados" : `${averageHumidity.toFixed(1)}%`}
               </p>
             </div>
             <div className={`w-px h-8 ${darkMode ? "bg-white/20" : "bg-[#001F3F]/20"}`} />
             <div className="text-center">
               <p className={`text-[10px] mb-0.5 ${sub}`} style={{ fontFamily: "Quicksand, sans-serif" }}>Variação</p>
               <p className="text-base font-bold text-[#98FFD9]" style={{ fontFamily: "Montserrat, sans-serif" }}>
-                {selectedMetric === "temperature" ? `±${(temperatureVariation / 2).toFixed(1)}°C` : `±1.5%`}
+                {selectedMetric === "temperature"
+                  ? temperatureVariation === null ? "Sem dados" : `±${(temperatureVariation / 2).toFixed(1)}°C`
+                  : "±1.5%"}
               </p>
             </div>
           </div>
@@ -539,6 +541,9 @@ export function ReportsScreen({ darkMode = false, isDesktop = false }: ReportsSc
         </div>
 
         <div className={isDesktop ? "grid grid-cols-2 lg:grid-cols-3 gap-3" : "space-y-2.5"}>
+          {activityLog.length === 0 && (
+            <p className={`text-xs ${sub}`}>Nenhuma leitura de sensor recebida ainda.</p>
+          )}
           {activityLog.map((activity) => (
             <div
               key={activity.id}
