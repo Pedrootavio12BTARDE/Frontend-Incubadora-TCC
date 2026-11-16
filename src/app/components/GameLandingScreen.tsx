@@ -6,7 +6,7 @@ import bubblegumImg from "../../imports/image-5.png";
 import enemyImg from "../../imports/image-6.png";
 
 // Cole aqui o link do vídeo de gameplay para abrir em uma nova aba.
-const GAMEPLAY_VIDEO_URL = "";
+const GAMEPLAY_VIDEO_URL = "/gameplay-video.mp4";
 
 interface GameLandingScreenProps {
   darkMode?: boolean;

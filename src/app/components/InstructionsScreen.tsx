@@ -7,8 +7,7 @@ interface InstructionsScreenProps {
 }
 
 export function InstructionsScreen({ onSupport, onBack, darkMode = false }: InstructionsScreenProps) {
-  // Add the published video URL here when the demonstration is available.
-  const tutorialVideoSrc: string | null = null;
+  const tutorialVideoSrc = "/tutorial-ecoincubadora.mov";
   const steps = [
     {
       number: 1,
